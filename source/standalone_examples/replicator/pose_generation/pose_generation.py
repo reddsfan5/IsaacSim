@@ -1,5 +1,5 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright (c) 2021-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,6 +87,7 @@ with open(CONFIG_FILE_PATH) as f:
 
 OBJECTS_TO_GENERATE = config_data["OBJECTS_TO_GENERATE"]
 
+
 kit = SimulationApp(launch_config=config_data["CONFIG"])
 
 import math
@@ -99,6 +100,7 @@ from isaacsim.core.utils.rotations import euler_angles_to_quat
 from isaacsim.core.utils.semantics import add_labels
 from isaacsim.replicator.writers import PoseWriter, YCBVideoWriter
 from isaacsim.storage.native import get_assets_root_path
+
 
 # Since the simulation is mostly collision checking, a larger physics dt can be used to speed up the object movements
 world = World(physics_dt=1.0 / 30.0)
@@ -127,7 +129,7 @@ class RandomScenario(torch.utils.data.IterableDataset):
         writer="dope",
         bucket="",
         test=False,
-        debug=False,
+        debug=True,
     ):
         self.test = test
         self.writer_format = writer.lower()
@@ -144,6 +146,7 @@ class RandomScenario(torch.utils.data.IterableDataset):
 
         self.result = True
         assets_root_path = get_assets_root_path()
+        # assets_root_path = '/home/ubuntu/lxd/lxd_code/asset_test'
         if assets_root_path is None:
             carb.log_error("Could not find Isaac Sim assets folder")
             self.result = False
@@ -618,3 +621,5 @@ if args.test:
 
 # Close the app
 kit.close()
+
+
