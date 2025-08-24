@@ -20,7 +20,7 @@
 import argparse
 import json
 import os
-
+import sys
 import yaml
 from isaacsim import SimulationApp
 
@@ -145,7 +145,15 @@ parser.add_argument("--config", required=False, help="Include specific config pa
 parser.add_argument(
     "--close-on-completion", action="store_true", help="Ensure the app closes on completion even in debug mode"
 )
+
+import sys
+print("Received args:", sys.argv)  # 检查是否打印出 launch.json 中的参数
 args, unknown = parser.parse_known_args()
+
+
+
+
+
 args_config = {}
 if args.config and os.path.isfile(args.config):
     with open(args.config, "r") as f:
@@ -160,6 +168,9 @@ else:
 
 # Update the default config dict with the external one
 config.update(args_config)
+
+
+
 
 simulation_app = SimulationApp(launch_config={"headless": False})
 
@@ -180,6 +191,10 @@ import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
 
 
+
+
+
+
 # Run the SDG pipeline on the scenarios
 def run_sdg(config):
     # Load the config parameters
@@ -196,6 +211,9 @@ def run_sdg(config):
     print(f"[SDG-Infinigen] Creating a new stage")
     omni.usd.get_context().new_stage()
     stage = omni.usd.get_context().get_stage()
+
+
+
 
     # Disable capture on play
     rep.orchestrator.set_capture_on_play(False)

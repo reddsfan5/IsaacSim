@@ -16,12 +16,12 @@
 environments:
   # List of background environments (list of folders or files)
   folders:
-    - /home/ubuntu/lxd/lxd_code/infinigen/outputs/omniverse
+    - /Isaac/Samples/Replicator/Infinigen/dining_rooms/
   files: []
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 12
+  total_captures: 8
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 2
   # Number of captures per environment after running the simulation (objects dropped)
@@ -66,7 +66,7 @@ labeled_assets:
   # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
   auto_label:
     # Number of labeled assets to create from the given files/folders list
-    num: 5
+    num: 0
     # Chance to disable gravity for the labeled assets (0.0 - all the assets will fall, 1.0 - all the assets will float)
     gravity_disabled_chance: 0.25
     # List of folders and files to search for the labeled assets
@@ -84,16 +84,21 @@ labeled_assets:
       label: pudding_box
       num: 2
       gravity_disabled_chance: 0.25
-    - url: /Isaac/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd
-      label: mustard_bottle
-      num: 2
+    # - url: /Isaac/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd
+    #   label: mustard_bottle
+    #   num: 2
+      # gravity_disabled_chance: 0.25
+    - url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
+      label: airship
+      num: 1
       gravity_disabled_chance: 0.25
+
 
 distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 30
+    num: 0
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
     # List of shape types to randomly choose from
@@ -102,7 +107,7 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 10
+    num: 0
     # Chance to disable gravity for the mesh distractors
     gravity_disabled_chance: 0.25
     # List of folders and files to search to randomly choose from

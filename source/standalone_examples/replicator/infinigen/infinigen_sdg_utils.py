@@ -30,7 +30,6 @@ from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.storage.native import get_assets_root_path
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
-
 def set_transform_attributes(
     prim: Usd.Prim,
     location: Gf.Vec3d | None = None,
@@ -216,6 +215,7 @@ def get_usd_paths(
     folders = folders or []
     skip_folder_keywords = skip_folder_keywords or []
 
+    # assets_root_path = '/home/ubuntu/lxd/usd_file/infinigen_assets'
     assets_root_path = get_assets_root_path()
     env_paths = []
 
@@ -566,13 +566,23 @@ def run_simulation(num_frames: int, render: bool = True) -> None:
 
         # Search for or create a physics scene
         for prim in stage.Traverse():
+
+
             if prim.IsA(UsdPhysics.Scene):
+
+
+                # todo lv
                 physx_scene = PhysxSchema.PhysxSceneAPI.Apply(prim)
+                physx_scene.CreateGpuTempBufferCapacityAttr(16 * 1024 * 1024 * 2)        
+                physx_scene.CreateGpuHeapCapacityAttr(32 * 1024 * 1024 * 2)
                 break
 
         if physx_scene is None:
             physics_scene = UsdPhysics.Scene.Define(stage, "/PhysicsScene")
             physx_scene = PhysxSchema.PhysxSceneAPI.Apply(stage.GetPrimAtPath("/PhysicsScene"))
+
+
+
 
         # Get simulation parameters
         physx_dt = 1 / physx_scene.GetTimeStepsPerSecondAttr().Get()
