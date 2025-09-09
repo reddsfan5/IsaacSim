@@ -5,6 +5,14 @@
             "request": "launch",
             "program": "${file}",
             "cwd":"${workspaceFolder}",
-            "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml", "--/physics/collisionApproximateCylinders","true", "--/physics/collisionApproximateCones","true"],
+            "justMyCode":false,
+            "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml"],
 
-        }]}
+        },
+        {
+  "name": "Attach to Remote IsaacSim",
+  "type": "python",
+  "request": "attach",
+  "port": 3000,
+  "host": "127.0.0.1"  // 远程IP
+    }]}

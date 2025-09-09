@@ -1,227 +1,291 @@
-![Isaac Sim](docs/readme/hero_shot_compressed.png)
+# Camera Above Target - Synthetic Data Generation
 
----
-# Isaac Sim
+这个项目提供了在Isaac Sim中实现合成数据生成的完整解决方案，其中相机随机位置于目标资产上方，永远不会出现在目标资产下方。
 
-[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://docs.python.org/3/whatsnew/3.11.html)
-[![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
-[![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
-[![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
+## 项目文件
 
-> **⚠️ PRE-RELEASE SOFTWARE NOTICE**
-> This is pre-release, currently in development. You may encounter bugs, incomplete features, and other issues that will be addressed in future releases. Please [report](#support) any issues you encounter. This will be finalized into a stable release in the future.
+1. **`simple_camera_above_target.py`** - 简单的示例脚本
+2. **`config_driven_camera_above_target.py`** - 配置驱动的脚本
+3. **`camera_above_target_config.json`** - 配置文件
+4. **`camera_above_target_sdg.py`** - 完整的实现脚本
 
-NVIDIA Isaac Sim™ is a simulation platform built on NVIDIA Omniverse, designed to develop, test, train, and deploy AI-powered robots in realistic virtual environments. It supports importing robotic systems from common formats such as URDF, MJCF, and CAD. The simulator leverages high-fidelity, GPU-accelerated physics engines to simulate accurate dynamics and support multi-sensor RTX rendering at scale. It comes equipped with end-to-end workflows including synthetic data generation, reinforcement learning, ROS integration, and digital twin simulation. Isaac Sim provides the infrastructure needed to support robotics development at any stage.
+## 核心功能
 
+✅ **相机始终位于目标上方** - 通过球坐标系统确保相机永远不会出现在目标下方  
+✅ **可配置的高度和距离范围** - 灵活设置相机位置参数  
+✅ **域随机化** - 光照、材质、相机位置的随机化  
+✅ **多种标注格式** - RGB、边界框、语义分割等  
+✅ **易于配置** - JSON配置文件支持  
 
-## Key Features
+## 快速开始
 
-- [Asset Import & Export](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/importer_exporter/importers_exporters.html): Importing and exporting robots and environments from and to non-USD format.
-- [Robot Tuning](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/robot_setup/index.html): Optimize robot for physics accuracy, computation efficiency, or photorealism
-- [Robot Simulation](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/robot_simulation/index.html): Tools for moving robots, such as controllers, motion generation and kinematics solvers, and policy integration.
-- [Sensors](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/sensors/index.html): RTX and physics-based sensors
-
-## Key Applications
-
-- [Isaac Lab](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/isaac_lab_tutorials/index.html): GPU-accelerated framework built for reinforcement learning, imitation learning, and motion planning.
-- [ROS Bridge](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/ros2_tutorials/ros2_landing_page.html): Integration with Robot Operating System (ROS).
-- [Synthetic Data Generation](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/synthetic_data_generation/index.html): Collection of SDG tools
-
-## Documentation
-
-For the latest Isaac Sim documentation, see [Isaac Sim Documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html).
-Follow these links to get started:
-
-- [Tutorials](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/introduction/quickstart_index.html)
-- [Assets](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/assets/usd_assets_overview.html)
-
-
-## Prerequisites and Environment Setup
-
-Ensure your system is set up with the following before building Isaac Sim:
-
-- **Operating System**: Windows 10/11 or Linux (Ubuntu 22.04)
-
-  > **(Linux) Ubuntu 24.04**
-  > Ubuntu 24.04 is not fully supported at this time. Building with Ubuntu 24.04 requires GCC/G++ 11 to be installed, GCC/G++ 12+ is not supported.
-
-- **GPU**: For additional information on GPU features and requirements, see [NVIDIA GPU Requirements](https://docs.omniverse.nvidia.com/dev-guide/latest/common/technical-requirements.html)
-
-  #### Local Workstation
-
-  | Min | Recommended | Best |
-  |-----|-------------|------|
-  | RTX 4080 | RTX 5080 | RTX PRO 6000 Blackwell Workstation |
-  |  | RTX 5880 Ada | RTX PRO 5000 Blackwell Workstation |
-
-  #### Datacenter
-
-  | Min | Recommended | Best |
-  |-----|-------------|------|
-  | A40 | L40S | RTX PRO 6000 Blackwell Server |
-  |  | L20 | |
-
-- **Driver**: See [NVIDIA Driver Requirements](https://docs.omniverse.nvidia.com/dev-guide/latest/common/technical-requirements.html)
-
-- **Internet Access**: Required for downloading the Omniverse Kit SDK, extensions, and tools.
-
-
-
-### Required Software Dependencies
-
-- [**Git**](https://git-scm.com/downloads): For version control and repository management
-
-- [**Git LFS**](https://git-lfs.com/): For managing large files within the repository
-
-- **(Windows - C++ Only) Microsoft Visual Studio (2019 or 2022)**: You can install the latest version from [Visual Studio Downloads](https://visualstudio.microsoft.com/downloads/). Ensure that the **Desktop development with C++** workload is selected.  [Additional information on Windows development configuration](docs/readme/windows_developer_configuration.md)
-
-- **(Windows - C++ Only) Windows SDK**: Install this alongside MSVC. You can find it as part of the Visual Studio Installer. [Additional information on Windows development configuration](docs/readme/windows_developer_configuration.md)
-
-- **(Linux) build-essentials**: A package that includes `make` and other essential tools for building applications.  For Ubuntu, install with:
-
-  ```bash
-  sudo apt-get install build-essential
-  ```
-
-  > **(Linux) ⚠️**
-  > Please use GCC/G++ 11, higher versions are not supported yet. To install GCC/G++ 11, run the following commands:
-  > ```bash
-  > sudo apt-get install gcc-11 g++-11
-  > sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 200
-  > sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 200
-  > ```
-
-### Recommended Software
-
-- [**(Linux) Docker**](https://docs.docker.com/engine/install/ubuntu/): For containerized development and deployment. **Ensure non-root users have Docker permissions.**
-
-- [**(Linux) NVIDIA Container Toolkit**](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html): For GPU-accelerated containerized development and deployment. **Installation and Configuring Docker steps are required.**
-
-- [**VSCode**](https://code.visualstudio.com/download) (or your preferred IDE): For code editing and development
-
-## Quick Start
-
-This section guides you through building Isaac Sim from source code.
-
-### 1. Clone the Repository
-
+### 1. 运行简单示例
 
 ```bash
-git clone https://github.com/isaac-sim/IsaacSim.git isaacsim
-cd isaacsim
-git lfs install
-git lfs pull
+cd /home/ubuntu/lxd/lxd_code/isaacsim
+python simple_camera_above_target.py
 ```
 
-### 2. Build
+这个脚本会：
+- 创建一个目标资产（默认为block）
+- 创建一个相机随机位置于目标上方
+- 生成50帧合成数据
+- 输出到 `./camera_above_target_output` 目录
 
-Run the following command to initiate the configuration wizard:
-
-**Linux:**
-
-Confirm that GCC/G++ 11 is being used before building using the following commands:
+### 2. 使用配置文件运行
 
 ```bash
-gcc --version
-g++ --version
+python config_driven_camera_above_target.py --config camera_above_target_config.json
 ```
+
+### 3. 无头模式运行（批量生成）
 
 ```bash
-./build.sh
+python config_driven_camera_above_target.py --config camera_above_target_config.json --headless
 ```
 
-**Windows:**
+## 配置说明
 
-> **⚠️ Windows Path Length Limitation**
-> Windows has a path length limitation of 260 characters. If you encounter errors related missing files or other build errors, try moving the repository to a shorter path.
+编辑 `camera_above_target_config.json` 来自定义您的设置：
 
-```powershell
-build.bat
+### 目标资产配置
+
+```json
+"target_asset": {
+    "usd_path": "/Isaac/Props/Blocks/block_instanceable.usd",  // 您的资产路径
+    "position": [0, 0, 0.5],  // 资产位置 [x, y, z]
+    "semantic_label": "target_object"  // 语义标签
+}
 ```
 
-### 3. Run
+### 相机位置配置
 
-> **⚠️ Startup Time**
-> The first time loading Isaac Sim may take up to several minutes as Extensions and Shader are loaded and cached. The subsequent startup time should be in the ranges of 10-30 seconds depending on hardware configuration.
+```json
+"camera_positioning": {
+    "height_range": [1.5, 4.0],      // 目标上方的高度范围
+    "radius_range": [0.8, 2.5],      // 与目标的水平距离范围
+    "polar_angle_range": [0, 75]     // 极角范围（0=正上方，90=水平）
+}
+```
 
+**重要参数说明：**
+- `height_range`: 控制相机在目标上方的高度
+- `radius_range`: 控制相机与目标中心的水平距离
+- `polar_angle_range`: 控制相机的俯视角度
+  - `0度` = 正上方俯视
+  - `45度` = 45度角俯视
+  - `75度` = 接近水平视角
+  - `90度` = 完全水平（但仍在上方）
 
+### 数据生成配置
 
-Navigate to the corresponding binary directory for your platform and run the executable.
+```json
+"data_generation": {
+    "num_frames": 100,
+    "output_directory": "./synthetic_data_output",
+    "annotations": {
+        "rgb": true,                    // RGB图像
+        "bounding_box_2d_tight": true,  // 2D边界框
+        "semantic_segmentation": true,  // 语义分割
+        "instance_segmentation": true,  // 实例分割
+        "depth": false,                 // 深度图
+        "bounding_box_3d": false        // 3D边界框
+    }
+}
+```
 
-**Linux:**
+## 核心算法：相机位置计算
+
+脚本使用球坐标系统确保相机始终位于目标上方：
+
+```python
+def get_random_camera_pose_above_target(target_position, height_range, radius_range, polar_angle_range):
+    # 生成随机球坐标
+    theta = random.uniform(0, 2 * π)              # 方位角（围绕Z轴）
+    phi = random.uniform(polar_angle_range)       # 极角（从Z轴正方向）
+    radius = random.uniform(radius_range)         # 半径
+    height = random.uniform(height_range)         # 额外高度
+    
+    # 转换为笛卡尔坐标（确保在目标上方）
+    x = target_x + radius * cos(theta) * sin(phi)
+    y = target_y + radius * sin(theta) * sin(phi)
+    z = target_z + height + radius * cos(phi)     # 始终为正值
+    
+    return (x, y, z)
+```
+
+## 使用您自己的资产
+
+### 1. 替换资产路径
+
+在配置文件中修改：
+
+```json
+"target_asset": {
+    "usd_path": "/path/to/your/asset.usd",
+    "position": [0, 0, 0],  // 调整为适合您资产的位置
+    "semantic_label": "your_object_class"
+}
+```
+
+### 2. 调整相机参数
+
+根据您资产的大小调整相机位置参数：
+
+```json
+"camera_positioning": {
+    "height_range": [2.0, 5.0],    // 大型资产需要更高的相机
+    "radius_range": [1.0, 3.0],    // 大型资产需要更远的距离
+    "polar_angle_range": [0, 60]   // 调整俯视角度
+}
+```
+
+### 3. 示例：不同资产类型的配置
+
+**小型物体（如产品、工具）：**
+```json
+"camera_positioning": {
+    "height_range": [0.5, 1.5],
+    "radius_range": [0.3, 1.0],
+    "polar_angle_range": [0, 75]
+}
+```
+
+**中型物体（如机器人、家具）：**
+```json
+"camera_positioning": {
+    "height_range": [1.5, 4.0],
+    "radius_range": [0.8, 2.5],
+    "polar_angle_range": [0, 60]
+}
+```
+
+**大型物体（如车辆、建筑）：**
+```json
+"camera_positioning": {
+    "height_range": [3.0, 10.0],
+    "radius_range": [2.0, 8.0],
+    "polar_angle_range": [15, 75]
+}
+```
+
+## 域随机化选项
+
+### 光照随机化
+
+```json
+"lighting": {
+    "enabled": true,
+    "dome_intensity_range": [800, 1500],
+    "dome_color_range": [[0.8, 0.8, 0.8], [1.0, 1.0, 1.0]],
+    "randomize_interval": 5  // 每5帧随机化一次
+}
+```
+
+### 材质随机化
+
+```json
+"materials": {
+    "enabled": true,
+    "metallic_range": [0.0, 1.0],
+    "roughness_range": [0.0, 1.0],
+    "diffuse_color_range": [[0.1, 0.1, 0.1], [0.9, 0.9, 0.9]],
+    "randomize_interval": 10  // 每10帧随机化一次
+}
+```
+
+## 输出数据格式
+
+生成的数据将保存在指定的输出目录中，包含：
+
+```
+output_directory/
+├── rgb/                    # RGB图像
+├── bounding_box_2d_tight/ # 2D边界框标注
+├── semantic_segmentation/ # 语义分割图像
+├── instance_segmentation/ # 实例分割图像
+└── metadata.json         # 元数据信息
+```
+
+## 性能优化建议
+
+1. **使用无头模式**进行批量生成：
+   ```bash
+   python config_driven_camera_above_target.py --headless
+   ```
+
+2. **调整rt_subframes**平衡质量和速度：
+   - `rt_subframes: 1` - 快速生成
+   - `rt_subframes: 4` - 平衡质量
+   - `rt_subframes: 8` - 高质量
+
+3. **禁用不需要的标注**以提高速度
+
+4. **使用适当的分辨率**：
+   - 训练：512x512 或 640x640
+   - 验证：1024x1024
+
+## 故障排除
+
+### 常见问题
+
+1. **相机看不到目标**
+   - 检查`polar_angle_range`是否太大
+   - 确保`height_range`适合您的资产大小
+
+2. **数据生成缓慢**
+   - 减少`rt_subframes`
+   - 禁用不必要的标注
+   - 使用较低的分辨率
+
+3. **资产未正确加载**
+   - 验证USD文件路径是否正确
+   - 检查资产是否在Isaac Sim资产库中
+
+### 调试模式
+
+运行时不使用`--headless`标志，可以实时查看相机位置和生成过程：
+
 ```bash
-cd _build/linux-x86_64/release
-./isaac-sim.sh
+python config_driven_camera_above_target.py --config camera_above_target_config.json
 ```
 
-**Windows:**
-```powershell
-cd _build/windows-x86_64/release
-isaac-sim.bat
+## 扩展功能
+
+### 添加多个相机
+
+在配置中增加相机数量：
+
+```json
+"camera_properties": {
+    "num_cameras": 3,  // 同时使用3个相机
+    ...
+}
 ```
 
-> NOTE: If this is your first time building Isaac Sim, you will be prompted to accept the Omniverse Licensing Terms.
+### 添加背景环境
 
+```json
+"environment": {
+    "background_environment": "/Isaac/Environments/Simple_Room/simple_room.usd"
+}
+```
 
+### 自定义随机化
 
-## Advanced Build Options
+您可以在脚本中添加更多随机化选项，如：
+- 目标资产的旋转
+- 额外的干扰物体
+- 动态光照变化
+- 相机内参随机化
 
+## 联系与支持
 
-Isaac Sim uses a custom build system with the following key options:
+如果您在使用过程中遇到问题，请：
 
+1. 检查Isaac Sim版本兼容性
+2. 确认所有依赖已正确安装
+3. 查看生成的日志文件
+4. 尝试使用默认配置进行测试
 
-### Core Build Options
-- `-c, --clean`: Clean the repository and exit
-- `-x, --rebuild`: Clean the repository before building (full rebuild)
-- `-h, --help`: Show all available build options
-
-
-### Configuration Options
-- `--config [debug|release]`: Specify build configuration (default: both)
-- `-d, --debug`: Build only debug configuration
-- `-r, --release`: Build only release configuration
-
-
-### Advanced Options
-- `-j NUM_CORES, --jobs NUM_CORES`: Limit the number of parallel compilation jobs
-- `-v, --verbose`: Enable verbose build output
-- `-q, --quiet`: Suppress build output
-
-
-### Build Steps Control
-- `--fetch-only`: Only fetch dependencies and stop
-- `-g, --generate`: Generate projects, stage files and stop
-- `-s, --stage`: Stage files, skip generation step
-- `-b, --build-only`: Only perform building step, skip others
-- `--post-build-only`: Only perform post-build step
-
-
-
-## Troubleshooting
-
-Please see the [FAQ](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/overview/faq_index.html), [Troubleshooting](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/overview/troubleshooting.html), and [Known Issues](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/overview/known_issues.html) for common questions, fixes, and workarounds.
-
-
-## Support
-
-* Please use GitHub [Discussions](https://github.com/isaac-sim/IsaacSim/discussions) for discussing ideas, asking questions, and requests for new features.
-* Github [Issues](https://github.com/isaac-sim/IsaacSim/issues) should only be used to track executable pieces of work with a definite scope and a clear deliverable. These can be fixing bugs, documentation issues, new features, or general updates.
-
-## Connect with the NVIDIA Omniverse Community
-
-Have a project or resource you'd like to share more widely? We'd love to hear from you! Reach out to the
-NVIDIA Omniverse Community team at OmniverseCommunity@nvidia.com to discuss potential opportunities
-for broader dissemination of your work.
-
-## License
-
-Licensing terms can be found in the [License File](LICENSE).
-
-## Citation
-
-To cite Isaac Sim, click on "Cite this repository" in the right sidebar of the [Isaac Sim GitHub repository](https://github.com/isaac-sim/IsaacSim) landing page and select one of the listed citation entries.
-
-## Contributing
-
-We do not support direct community contributions at the moment.
-
+这个解决方案为您提供了一个完整的、可配置的相机定位系统，确保在合成数据生成过程中相机始终位于目标资产上方。

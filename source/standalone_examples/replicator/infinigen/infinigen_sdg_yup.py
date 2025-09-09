@@ -239,6 +239,8 @@ def enable_rp_and_warmup(render_products, warmup_updates: int, warmup_dummy_step
 
 # Run the SDG pipeline on the scenarios
 def run_sdg(config):
+
+    # ⭐加载配置⭐
     # Load the config parameters
     env_config = config.get("environments", {})
     env_urls = infinigen_utils.get_usd_paths(
@@ -249,15 +251,13 @@ def run_sdg(config):
     labeled_assets_config = config.get("labeled_assets", {})
     distractors_config = config.get("distractors", {})
 
+    # ⭐创建stage，并设置向上轴⭐
     # Create a new stage
     print(f"[SDG-Infinigen] Creating a new stage")
     omni.usd.get_context().new_stage()
     stage = omni.usd.get_context().get_stage()
     # Set stage Up axis
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
-
-
-
 
     # Disable capture on play
     rep.orchestrator.set_capture_on_play(False)
@@ -274,6 +274,9 @@ def run_sdg(config):
     # Debug mode (hide ceiling, move viewport camera to the top-down view)
     debug_mode = config.get("debug_mode", False)
 
+    
+    
+    # ⭐相机创建⭐
     # Create the cameras
     cameras = []
     num_cameras = capture_config.get("num_cameras", 0)
@@ -309,6 +312,11 @@ def run_sdg(config):
                 print(f"\t {writer_config['type']}'s out dir: {writer_config.get('kwargs', {}).get('output_dir', '')}")
     print(f"[SDG-Infinigen] Created {len(writers)} writers")
 
+    
+    
+    
+    
+    # ⭐加载自动标注和手动标注的资产⭐
     # Load target assets with auto-labeling (e.g. 002_banana -> banana)
     auto_label_config = labeled_assets_config.get("auto_label", {})
     auto_floating_assets, auto_falling_assets = infinigen_utils.load_auto_labeled_assets(auto_label_config)
@@ -324,7 +332,7 @@ def run_sdg(config):
             
 
     
-    
+    # ⭐加载干扰物⭐
     # Load the shape distractors
     shape_distractors_config = distractors_config.get("shape_distractors", {})
     floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
@@ -339,9 +347,11 @@ def run_sdg(config):
     print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
     mesh_distractors = floating_meshes + falling_meshes
 
+    # ⭐asset 尺度自动适配⭐
     # Resolve any centimeter-meter scale issues of the assets
     infinigen_utils.resolve_scale_issues_with_metrics_assembler()
 
+    # ⭐加载灯光⭐
     # Create lights to randomize in the working area
     scene_lights = []
     num_scene_lights = capture_config.get("num_scene_lights", 0)
@@ -355,6 +365,10 @@ def run_sdg(config):
     infinigen_utils.register_dome_light_randomizer()
     infinigen_utils.register_shape_distractors_color_randomizer(shape_distractors)
 
+   
+   
+    # ⭐数据捕获的一些配置⭐
+   
     # Check if the render mode needs to be switched to path tracing for the capture (by default: RayTracedLighting)
     use_path_tracing = capture_config.get("path_tracing", False)
 
@@ -382,7 +396,7 @@ def run_sdg(config):
     wait_after_each_capture = bool(capture_config.get("wait_after_each_capture", True))
     
     
-    
+    # ⭐循环场景，开始捕获数据⭐
     # Start the SDG loop
     env_cycle = cycle(env_urls)
     capture_counter = 0
@@ -390,13 +404,13 @@ def run_sdg(config):
         # Load the next environment
         env_url = next(env_cycle)
 
-
+        # ⭐材质颜色的随机化⭐
         # # # todo material and color randomizer
         for target_asset in target_assets:
             asset_prim_path = str(target_asset.GetPath())
             try:
                 rep_items = rep.get.shader(asset_prim_path)
-                # color_dis = rep.distribution.uniform((0.2,0.2,0.2),(1,1,1))
+                color_dis = rep.distribution.uniform((0.2,0.2,0.2),(1,1,1))
 
                 mat_low_value = random.uniform(0.7,0.89)
                 rough_low_value = random.uniform(0.2,0.9)
@@ -404,7 +418,7 @@ def run_sdg(config):
                 metallic_dis = rep.distribution.uniform((mat_low_value,),(mat_low_value+0.1,))
                 roughness_dis = rep.distribution.uniform((rough_low_value,),(rough_low_value+0.1,))
                 with rep_items:
-                    # rep.modify.attribute('inputs:base_color_factor',color_dis)
+                    rep.modify.attribute('inputs:base_color_factor',color_dis)
                     rep.modify.attribute('inputs:metallic_factor',metallic_dis)
                     rep.modify.attribute('inputs:roughness_factor',roughness_dis) 
             except:
@@ -423,17 +437,21 @@ def run_sdg(config):
         working_area_loc = infinigen_utils.get_matching_prim_location(
             match_string="TableDining", root_path="/Environment"
         )
+        working_area_loc_abs = infinigen_utils.convert_rotated_location_to_abs(working_area_loc)
 
+        print(f"桌子位置:{working_area_loc_abs}")
+
+        # ⭐视窗相机位置和角度设置⭐
         # Move viewport above the working area to get a top-down view of the scene
         if debug_mode:
-            camera_loc = (working_area_loc[0], working_area_loc[1], working_area_loc[2] + 2)
-            set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc))
+            camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
+            print(f"相机位置:{camera_loc}")
+            set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
 
+        # ⭐⭐我们的主体asset的位置⭐⭐
         # Get the spawn areas as offseted location ranges from the working area (min_x, min_y, min_z, max_x, max_y, max_z)
         print(f"\tRandomizing {len(target_assets)} target assets around the working area")
-        target_loc_range = infinigen_utils.offset_range((-0.2, -0.2, 1, 0.2, 0.2, 1.5), working_area_loc)
-        
-
+        target_loc_range = infinigen_utils.offset_range((-0.1, 0.8, -0.2, 0.1, 1.5, 0.2), working_area_loc_abs)
         
         infinigen_utils.randomize_poses(
             target_assets,
@@ -443,15 +461,17 @@ def run_sdg(config):
         )
         
         
+        # target_loc_range = infinigen_utils.offset_range((0, 0, 0, 0, 0, 0), working_area_loc_abs)
+
         # infinigen_utils.randomize_poses(
         #     target_assets,
-        #     location_range=(0, 0, 0, 0, 0, 0),
+        #     location_range=target_loc_range,
         #     rotation_range=(0, 0),
         #     scale_range=(1, 1),
         # )
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
-        mesh_loc_range = infinigen_utils.offset_range((-1, -1, 1, 1, 1, 2), working_area_loc)
+        mesh_loc_range = infinigen_utils.offset_range((-1, -1, 1, 1, 1, 2), working_area_loc_abs)
         infinigen_utils.randomize_poses(
             mesh_distractors,
             location_range=mesh_loc_range,
@@ -461,7 +481,7 @@ def run_sdg(config):
 
         # Shape distractors
         print(f"\tRandomizing {len(shape_distractors)} shape distractors around the working area")
-        shape_loc_range = infinigen_utils.offset_range((-1.5, -1.5, 1, 1.5, 1.5, 2), working_area_loc)
+        shape_loc_range = infinigen_utils.offset_range((-1.5, -1.5, 1, 1.5, 1.5, 2), working_area_loc_abs)
         infinigen_utils.randomize_poses(
             shape_distractors,
             location_range=shape_loc_range,
@@ -470,7 +490,7 @@ def run_sdg(config):
         )
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range((-1, -1, .5, 1, 1, 2), working_area_loc)
+        lights_loc_range = infinigen_utils.offset_range((-1, -1, .5, 1, 1, 2), working_area_loc_abs)
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,

@@ -66,6 +66,13 @@ config = {
             "floating": True,
             "scale_min_max": (0.85, 1.25),
         },
+        {
+            "url": "file:///home/ubuntu/lxd/usd_file/infinigen_assets/Props/YCB/Axis_Aligned/airship.usd",
+            "label": "air",
+            "count": 5,
+            "floating": True,
+            "scale_min_max": (0.85, 1.25),
+        },
     ],
     "shape_distractors_types": ["capsule", "cone", "cylinder", "sphere", "cube"],
     "shape_distractors_scale_min_max": (0.015, 0.15),
