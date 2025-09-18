@@ -213,7 +213,7 @@ import omni.replicator.core as rep
 import omni.timeline
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import UsdGeom
+from pxr import UsdGeom,Gf
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
 
@@ -395,6 +395,11 @@ def run_sdg(config):
     step_delta_time = float(capture_config.get("step_delta_time", 0.0))
     wait_after_each_capture = bool(capture_config.get("wait_after_each_capture", True))
     
+
+    scene_6_location_for_airship = [(-1.8,-0.137,2.7),]
+    scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9),(-12.3,-0.8836,7.4),(-11.8,-0.8836,7.5),(-11.1,-0.65,8.1)]
+    # scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9)]
+    scene_select = scene_7_location_for_airship
     
     # ⭐循环场景，开始捕获数据⭐
     # Start the SDG loop
@@ -437,38 +442,54 @@ def run_sdg(config):
         working_area_loc = infinigen_utils.get_matching_prim_location(
             match_string="TableDining", root_path="/Environment"
         )
+
+        stage = omni.usd.get_context().get_stage()
+        prim = stage.GetPrimAtPath('/Environment')
+        infinigen_utils.set_transform_attributes(prim,location=Gf.Vec3f(*random.choice(scene_select)))
+
+
+
+
         working_area_loc_abs = infinigen_utils.convert_rotated_location_to_abs(working_area_loc)
 
         print(f"桌子位置:{working_area_loc_abs}")
 
         # ⭐视窗相机位置和角度设置⭐
         # Move viewport above the working area to get a top-down view of the scene
-        if debug_mode:
-            camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
-            print(f"相机位置:{camera_loc}")
-            set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
+        # if debug_mode:
+        #     camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
+        #     print(f"相机位置:{camera_loc}")
+        #     set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
 
         # ⭐⭐我们的主体asset的位置⭐⭐
         # Get the spawn areas as offseted location ranges from the working area (min_x, min_y, min_z, max_x, max_y, max_z)
         print(f"\tRandomizing {len(target_assets)} target assets around the working area")
-        target_loc_range = infinigen_utils.offset_range((-0.1, 0.8, -0.2, 0.1, 1.5, 0.2), working_area_loc_abs)
+        # target_loc_range = infinigen_utils.offset_range((-0.1, 0.8, -0.2, 0.1, 1.5, 0.2), working_area_loc_abs)
         
-        infinigen_utils.randomize_poses(
-            target_assets,
-            location_range=target_loc_range,
-            rotation_range=(10, 25),
-            scale_range=(1, 1),
-        )
+        # infinigen_utils.randomize_poses(
+        #     target_assets,
+        #     location_range=target_loc_range,
+        #     rotation_range=(10, 25),
+        #     scale_range=(1, 1),
+        # )
         
         
         # target_loc_range = infinigen_utils.offset_range((0, 0, 0, 0, 0, 0), working_area_loc_abs)
 
-        # infinigen_utils.randomize_poses(
-        #     target_assets,
-        #     location_range=target_loc_range,
-        #     rotation_range=(0, 0),
-        #     scale_range=(1, 1),
-        # )
+        
+        working_area_loc_abs = (0,0,0)
+        if debug_mode:
+            camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
+            print(f"相机位置:{camera_loc}")
+            set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
+        
+        
+        infinigen_utils.randomize_poses(
+            target_assets,
+            location_range=(0,0,0,0,0,0),
+            rotation_range=(0, 0),
+            scale_range=(1, 1),
+        )
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
         mesh_loc_range = infinigen_utils.offset_range((-1, -1, 1, 1, 1, 2), working_area_loc_abs)
@@ -490,11 +511,11 @@ def run_sdg(config):
         )
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range((-1, -1, .5, 1, 1, 2), working_area_loc_abs)
+        lights_loc_range = infinigen_utils.offset_range((-0.5, -0.5, .5, 0.5, 0.5, 1.5), working_area_loc_abs)
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,
-            intensity_range=(500, 2500),
+            intensity_range=(1800, 2500),
             color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
         )
 
@@ -579,7 +600,7 @@ def run_sdg(config):
 
 
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=(0, 45)
+                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=(0, 90)
             )
             print(
                 f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"

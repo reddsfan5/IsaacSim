@@ -16,18 +16,18 @@
 environments:
   # List of background environments (list of folders or files)
   folders:
-    - /Isaac/Samples/Replicator/Infinigen/dining_rooms/
-    - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms/
+    - /Isaac/Samples/Replicator/Infinigen/dining_rooms/dining_room_7/
+    # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms/
   
   files: []
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 5000
+  total_captures: 10000
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 300
+  num_dropped_captures_per_env: 100
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 5
   # Resolution of the captured frames
@@ -41,36 +41,36 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [1, 1.8]
+  camera_distance_to_target_range: [0.7, 2.8]
   # Number of scene lights to create in the working area
-  num_scene_lights: 4
+  num_scene_lights: 8
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
   - type: BasicWriter
     kwargs:
-      output_dir: "_out_infinigen_basicwriter_lv"
-      rgb: true
+      output_dir: "_out_infinigen_basicwriter_lv_0918_v2"
+      rgb: false
       semantic_segmentation: true
       colorize_semantic_segmentation: true
       bounding_box_2d_tight: true
-  - type: DataVisualizationWriter
-    kwargs:
-      output_dir: "_out_infinigen_dataviswriter_lv"
-      bounding_box_2d_tight: true
-      bounding_box_2d_tight_params:
-        background: rgb
+  # - type: DataVisualizationWriter
+  #   kwargs:
+  #     output_dir: "_out_infinigen_dataviswriter_lv"
+  #     bounding_box_2d_tight: true
+  #     bounding_box_2d_tight_params:
+  #       background: rgb
       # bounding_box_3d: true
   #     bounding_box_3d_params:
   #       background: normals
     # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
   - type: PoseWriter
     kwargs:
-      output_dir: "_out_infinigen_posewriter_lv"
+      output_dir: "_out_infinigen_posewriter_lv_0918_v2"
       format: null # dope ; centerpose
       use_subfolders: True
       write_debug_images: True
-      skip_empty_frames: False
+      skip_empty_frames: True
 labeled_assets:
   # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
   auto_label:
@@ -146,4 +146,4 @@ distractors:
 
 # Hide ceiling, move viewport camera to top-down view above the working area
 debug_mode: false
-headless: false
+headless: true

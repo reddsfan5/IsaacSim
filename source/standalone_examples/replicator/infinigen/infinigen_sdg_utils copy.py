@@ -18,7 +18,7 @@ import os
 import random
 import re
 from itertools import chain
-import numpy as np
+
 import omni.kit.app
 import omni.kit.commands
 import omni.physx
@@ -41,7 +41,6 @@ def set_transform_attributes(
     orientation: Gf.Quatf | None = None,
     rotation: Gf.Vec3f | None = None,
     scale: Gf.Vec3f | None = None,
-    rotate_order:str = "XYZ"
 ) -> None:
     """Set transformation attributes (location, orientation, rotation, scale) on a prim."""
     if location is not None:
@@ -52,19 +51,10 @@ def set_transform_attributes(
         if not prim.HasAttribute("xformOp:orient"):
             UsdGeom.Xformable(prim).AddOrientOp()
         prim.GetAttribute("xformOp:orient").Set(orientation)
-    # if rotation is not None:
-    #     if not prim.HasAttribute(f"xformOp:rotate{rotate_order}"):
-
-    #         UsdGeom.Xformable(prim).AddRotateXYZOp()
-    #     prim.GetAttribute("xformOp:rotateXYZ").Set(rotation)
-
     if rotation is not None:
-        if not prim.HasAttribute(f"xformOp:rotate{rotate_order}"):
-            xfromable = UsdGeom.Xformable(prim)
-            getattr(xfromable,f'AddRotate{rotate_order}Op')()
-        prim.GetAttribute(f"xformOp:rotate{rotate_order}").Set(rotation)
-
-
+        if not prim.HasAttribute("xformOp:rotateXYZ"):
+            UsdGeom.Xformable(prim).AddRotateXYZOp()
+        prim.GetAttribute("xformOp:rotateXYZ").Set(rotation)
     if scale is not None:
         if not prim.HasAttribute("xformOp:scale"):
             UsdGeom.Xformable(prim).AddScaleOp()
@@ -135,6 +125,147 @@ def add_colliders_and_rigid_body_dynamics(prim: Usd.Prim, disable_gravity: bool 
 
 
 
+# def get_random_pose_on_sphere(
+#     origin: tuple[float, float, float],
+#     radius_range: tuple[float, float],
+#     polar_angle_range: tuple[float, float],
+#     camera_forward_axis: tuple[float, float, float] = (0, 0, -1),
+# ) -> tuple[Gf.Vec3d, Gf.Quatf]:
+#     """Generate a random pose on a sphere looking at the origin, with specified radius and polar angle ranges."""
+#     # https://docs.omniverse.nvidia.com/isaacsim/latest/reference_conventions.html
+#     # Convert degrees to radians for polar angles (theta)
+#     polar_angle_min_rad = math.radians(polar_angle_range[0])
+#     polar_angle_max_rad = math.radians(polar_angle_range[1])
+
+#     # Generate random spherical coordinates
+#     radius = random.uniform(radius_range[0], radius_range[1])
+#     polar_angle = random.uniform(polar_angle_min_rad, polar_angle_max_rad)
+#     azimuthal_angle = random.uniform(0, 2 * math.pi)
+
+#     # Convert spherical coordinates to Cartesian coordinates
+#     x = radius * math.sin(polar_angle) * math.cos(azimuthal_angle)
+#     y = radius * math.sin(polar_angle) * math.sin(azimuthal_angle)
+#     z = radius * math.cos(polar_angle)
+
+#     # Calculate the location in 3D space
+#     location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
+
+#     # Calculate direction vector from camera to look_at point
+#     direction = Gf.Vec3d(origin) - location
+#     direction_normalized = direction.GetNormalized()
+
+#     # Calculate rotation from forward direction (rotateFrom) to direction vector (rotateTo)
+#     rotation = Gf.Rotation(Gf.Vec3d(camera_forward_axis), direction_normalized)
+#     orientation = Gf.Quatf(rotation.GetQuat())
+
+#     return location, orientation
+
+
+# def randomize_camera_poses(
+#     cameras: list[Usd.Prim],
+#     targets: list[Usd.Prim],
+#     distance_range: tuple[float, float],
+#     polar_angle_range: tuple[float, float] = (0, 180),
+#     look_at_offset: tuple[float, float] = (-0.1, 0.1),
+# ) -> None:
+#     """Randomize the poses of cameras to look at random targets with adjustable distance and offset."""
+#     for cam in cameras:
+#         # Get a random target asset to look at
+#         target_asset = random.choice(targets)
+
+#         # Add a look_at offset so the target is not always in the center of the camera view
+#         target_loc = target_asset.GetAttribute("xformOp:translate").Get()
+#         target_loc = (
+#             target_loc[0] + random.uniform(look_at_offset[0], look_at_offset[1]),
+#             target_loc[1] + random.uniform(look_at_offset[0], look_at_offset[1]),
+#             target_loc[2] + random.uniform(look_at_offset[0], look_at_offset[1]),
+#         )
+
+#         # Generate random camera pose
+#         loc, quat = get_random_pose_on_sphere(target_loc, distance_range, polar_angle_range)
+
+#         # Set the camera's transform attributes to the generated location and orientation
+#         set_transform_attributes(cam, location=loc, orientation=quat)
+
+
+
+
+
+# # Y-UP 版本
+# def randomize_camera_poses(
+#     cameras: list[Usd.Prim],
+#     targets: list[Usd.Prim],
+#     distance_range: tuple[float, float],
+#     polar_angle_range: tuple[float, float] = (0, 180),
+#     look_at_offset: tuple[float, float] = (-0.1, 0.1),
+# ) -> None:
+#     """
+#     随机相机机位（Y-UP）。每个相机看向随机目标点，并在 look_at 上加少量抖动。
+#     polar_angle_range: 极角 θ，单位度，0° 在 +Y，180° 在 -Y。
+#     """
+#     for cam in cameras:
+#         target_asset = random.choice(targets)
+
+#         # 目标点坐标，并加入轻微抖动（xyz 同范围）
+#         target_loc = target_asset.GetAttribute("xformOp:translate").Get()
+#         jitter = lambda: random.uniform(look_at_offset[0], look_at_offset[1])
+#         target_loc = (target_loc[0] + jitter(),
+#                       target_loc[1] + jitter(),
+#                       target_loc[2] + jitter())
+
+#         # 生成 Y-UP 的随机相机位姿
+#         loc, quat = get_random_pose_on_sphere(
+#             origin=target_loc,
+#             radius_range=distance_range,
+#             polar_angle_range=polar_angle_range,
+#             camera_forward_axis=(0, 0, -1),  # 相机本地前向仍为 -Z
+#         )
+
+#         # 写回相机的平移与旋转（你已有的工具函数）
+#         set_transform_attributes(cam, location=loc, orientation=quat)
+
+# # Y-UP 版本
+# def get_random_pose_on_sphere(
+#     origin: tuple[float, float, float],
+#     radius_range: tuple[float, float],
+#     polar_angle_range: tuple[float, float],
+#     camera_forward_axis: tuple[float, float, float] = (0, 0, -1),
+# ) -> tuple[Gf.Vec3d, Gf.Quatf]:
+#     """
+#     生成 Y-UP 的随机机位：
+#     - 极角 θ 从 +Y 量起（0°=正上方，180°=正下方）
+#     - 方位角 φ 绕 Y 轴，从 +X 方向开始，右手系朝 +Z 递增
+#     相机朝向 origin。
+#     """
+#     # 角度转弧度
+#     theta_min = math.radians(polar_angle_range[0])   # 极角 θ
+#     theta_max = math.radians(polar_angle_range[1])
+#     theta = random.uniform(theta_min, theta_max)
+
+#     phi = random.uniform(0.0, 2.0 * math.pi)         # 方位角 φ
+#     r = random.uniform(radius_range[0], radius_range[1])
+
+#     # Y-UP 的球坐标到笛卡尔
+#     x = r * math.sin(theta) * math.cos(phi)
+#     y = r * math.cos(theta)               # Y 为极轴
+#     z = r * math.sin(theta) * math.sin(phi)
+
+#     location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
+
+#     # look-at 朝向
+#     direction = Gf.Vec3d(origin) - location
+#     direction_normalized = direction.GetNormalized()
+
+#     # 将相机“前向向量”（默认 -Z）旋到目标方向
+#     rotation = Gf.Rotation(Gf.Vec3d(camera_forward_axis), direction_normalized)
+#     orientation = Gf.Quatf(rotation.GetQuat())
+
+#     return location, orientation
+
+
+
+
+
 
 # ------------------------------------------------------------
 ## 公共小工具
@@ -160,12 +291,16 @@ def _signed_angle_deg(a: Gf.Vec3d, b: Gf.Vec3d, axis: Gf.Vec3d) -> float:
     sign = 1.0 if (axis_n * cross) >= 0.0 else -1.0
     return unsigned * sign
 
-
-
-def get_random_location_on_sphere(
+# # ------------------------------------------------------------
+# # 生成机位（Y-UP）
+# ------------------------------------------------------------
+def get_random_pose_on_sphere(
     origin: Tuple[float, float, float],
     radius_range: Tuple[float, float],
-    polar_angle_range: Tuple[float, float]
+    polar_angle_range: Tuple[float, float],
+    camera_forward_axis: Tuple[float, float, float] = (0, 0, -1),
+    keep_level: bool = False,
+    world_up: Tuple[float, float, float] = (0, 1, 0),
 ) -> Tuple[Gf.Vec3d, Gf.Quatf]:
     """
     生成 Y-UP 场景中的随机相机位姿，使相机看向 origin。
@@ -181,8 +316,8 @@ def get_random_location_on_sphere(
     theta_min = math.radians(polar_angle_range[0])
     theta_max = math.radians(polar_angle_range[1])
     theta = random.uniform(theta_min, theta_max)
-    phi = random.uniform(0.0, 2.0 * math.pi)
-    # phi = random.uniform(2.0*math.pi*270/360, 2.0*math.pi*270/360)
+    # phi = random.uniform(0.0, 2.0 * math.pi)
+    phi = random.uniform(2.0*math.pi*265/360, 2.0*math.pi*275/360)
 
     # 半径
     r = random.uniform(radius_range[0], radius_range[1])
@@ -192,68 +327,38 @@ def get_random_location_on_sphere(
     y = r * math.cos(theta)                 # 注意 Y 是极轴
     z = r * math.sin(theta) * math.sin(phi)
 
-    # location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
-
-    return origin[0] + x, origin[1] + y, origin[2] + z
-
-
-# 计算方位角（绕Y轴旋转）
-def calculate_yaw(x0, y0, z0, target_x, target_y, target_z):
-    # 计算目标点与相机位置在XOZ平面上的投影点
-    dx = -1 * (target_x - x0)
-    dz = -1 * (target_z - z0)
-    # 方位角 phi (绕 Y 轴旋转)
-    yaw = math.atan2(dx, dz)  # 计算朝向的方位角（弧度）
-    print(f'yaw: {yaw / math.pi * 180}')  # 打印yaw)
-    return yaw
-
-
-# 计算俯仰角（绕X轴旋转）
-def calculate_pitch(x0, y0, z0, target_x, target_y, target_z):
-    # 计算目标与相机之间的距离
-    dx = target_x -x0
-    dy = target_y - y0
-    dz = target_z -z0
-    # 计算俯仰角 theta
-    distance = math.sqrt(dx ** 2 + dz ** 2)
-    pitch = math.atan2(dy, distance)  # 计算朝向的俯仰角（弧度）
-    print(f'pitch: {pitch / math.pi * 180}')  # 打印pitch)
-    return pitch
-
-
-
-# 主函数，计算相机的intrinsic旋转欧拉角order->Y,X,Z,then trans to extrinsic ,order -> Z,X,Y
-def calculate_camera_orientation(x0, y0, z0, target_x, target_y, target_z):
-    # 计算方位角和俯仰角
-    yaw = calculate_yaw(x0, y0, z0, target_x, target_y, target_z)
-    pitch = calculate_pitch(x0, y0, z0, target_x, target_y, target_z)
-    
-    return pitch/math.pi*180, yaw/math.pi*180, random.uniform(-10,10)
+    location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
 
 
 
 
-# 计算旋转矩阵到四元数的转换（YZX顺序）
-def euler_to_quaternion(roll, pitch, yaw):
-    # 计算每个旋转轴的旋转矩阵
-    cy = math.cos(yaw * 0.5)
-    sy = math.sin(yaw * 0.5)
-    cp = math.cos(pitch * 0.5)
-    sp = math.sin(pitch * 0.5)
-    cr = math.cos(roll * 0.5)
-    sr = math.sin(roll * 0.5)
+    # 2. calculate camera orientation
+    # 目标方向（世界）：相机看向 origin
+    forward_world = _safe_normalize(Gf.Vec3d(origin) - location)
 
-    # 计算四元数（YZX 顺序）
-    w = cr * cp * cy + sr * sp * sy
-    x = sr * cp * cy - cr * sp * sy
-    y = cr * sp * cy + sr * cp * sy
-    z = cr * cp * sy - sr * sp * cy
+    # 把“相机本地前向向量”旋到目标方向
+    rot_to_target = Gf.Rotation(Gf.Vec3d(*camera_forward_axis), forward_world)
+    quat = Gf.Quatf(rot_to_target.GetQuat())
 
-    # 返回Gf.Quatf（四元数类型）
-    return Gf.Quatf(w, x, y, z)
+    if keep_level:
+        # 以世界 up（默认 (0,1,0)）来最小化滚转，使相机尽量“水平”
+        world_up_v = _safe_normalize(Gf.Vec3d(*world_up))
+        # 先用当前旋转把“相机本地 up”(0,1,0)变到世界，得到 current_up
+        current_up = rot_to_target.TransformDir(Gf.Vec3d(0, 1, 0))
+        current_up = _safe_normalize(current_up)
 
+        # 目标 up = 在 forward_world 与 world_up_v 张成的平面上，与 forward 正交的单位向量
+        right_world = _safe_normalize(forward_world ^ world_up_v)  # forward × up
+        if right_world.GetLength() > 1e-6:
+            desired_up = _safe_normalize(right_world ^ forward_world)  # right × forward
+            # 围绕 forward 轴修正 current_up -> desired_up 的夹角
+            angle = _signed_angle_deg(current_up, desired_up, forward_world)
+            twist = Gf.Rotation(forward_world, angle)
+            twist_quat = Gf.Quatf(twist.GetQuat())
+            quat = twist_quat * quat  # 先旋到目标，再绕前向轴微调
+        # 若 forward 与 world_up 几乎平行，跳过修正以避免数值不稳
 
-
+    return location, quat
 
 
 def randomize_camera_poses(
@@ -269,6 +374,7 @@ def randomize_camera_poses(
       - distance_range: (近, 远)
       - polar_angle_range: (θ_min°, θ_max°)；0°= +Y，180°= -Y
       - look_at_offset: 在目标点 xyz 上加入的随机抖动范围（同一范围）
+      - keep_level: True 时尽量消除滚转（保持“水平感”）
     """
     rnd = random.uniform  # 小写方便
     for cam in cameras:
@@ -280,18 +386,21 @@ def randomize_camera_poses(
         look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
 
         # 随机机位（Y-UP）
-        loc= get_random_location_on_sphere(
+        loc, quat = get_random_pose_on_sphere(
             origin=look_at,
             radius_range=distance_range,
-            polar_angle_range=polar_angle_range
+            polar_angle_range=polar_angle_range,
+            camera_forward_axis=(0, 0, -1),   # USD 相机默认前向 -Z
+            keep_level=keep_level,
+            world_up=(0, 1, 0),
         )
-        euler_angle = calculate_camera_orientation(*loc,0,0,0)
+
         # 写回（此函数由isaacsim项目里提供）
-        # set_transform_attributes(cam, location=loc, orientation=euler_to_quaternion(*euler_angle))
-        
-        
-        
-        set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d(euler_angle),rotate_order="ZXY")
+        set_transform_attributes(cam, location=loc, orientation=quat)
+
+
+
+
 
 
 

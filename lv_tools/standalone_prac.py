@@ -10,7 +10,6 @@ import omni.usd
 import omni.replicator.core as rep
 
 
-omni.usd.get_context().new_stage()
 stage = omni.usd.get_context().get_stage()
 
 # GroundPlane(prim_path="/World/GroundPlane",z_position=0)

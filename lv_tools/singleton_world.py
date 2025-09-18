@@ -11,8 +11,7 @@ from pxr import Sdf
 
 
 def run_example():
-    # Create a new stage and disable capture on play
-    omni.usd.get_context().new_stage()
+
     rep.orchestrator.set_capture_on_play(False)
 
     # Setup the stage with a dome light and a cube
