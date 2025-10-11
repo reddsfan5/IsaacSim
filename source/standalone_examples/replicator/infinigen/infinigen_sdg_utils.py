@@ -28,8 +28,8 @@ import omni.usd
 from isaacsim.core.utils.semantics import add_labels, remove_labels
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.storage.native import get_assets_root_path
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
-
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade,Vt
+from typing import Union
 
 import math
 import random
@@ -199,12 +199,31 @@ def get_random_location_on_sphere(
 
 # 计算方位角（绕Y轴旋转）
 def calculate_yaw(x0, y0, z0, target_x, target_y, target_z):
+    '''
+    O-------------------------->  x
+    |
+    |
+    |                  p
+    |                  |
+    |                  |
+    |                  |
+    |    q<------------O           
+    |
+    V
+    Z
+
+    
+world coordinates w.r.t. unit circle coordinates
+yaw = atan2(dq,dp) = atan2(dx,dz)
+
+
+    '''
     # 计算目标点与相机位置在XOZ平面上的投影点
-    dx = -1 * (target_x - x0)
-    dz = -1 * (target_z - z0)
+    dx =  x0 - target_x
+    dz = z0 - target_z
     # 方位角 phi (绕 Y 轴旋转)
     yaw = math.atan2(dx, dz)  # 计算朝向的方位角（弧度）
-    print(f'yaw: {yaw / math.pi * 180}')  # 打印yaw)
+    print(f'yaw: {yaw / math.pi * 180}')  
     return yaw
 
 
@@ -217,7 +236,7 @@ def calculate_pitch(x0, y0, z0, target_x, target_y, target_z):
     # 计算俯仰角 theta
     distance = math.sqrt(dx ** 2 + dz ** 2)
     pitch = math.atan2(dy, distance)  # 计算朝向的俯仰角（弧度）
-    print(f'pitch: {pitch / math.pi * 180}')  # 打印pitch)
+    print(f'pitch: {pitch / math.pi * 180}')  
     return pitch
 
 
@@ -388,14 +407,20 @@ def add_colliders_to_env(root_path: str | None = None, approximation_type: str =
 
 
 def find_matching_prims(
-    match_strings: list[str], root_path: str | None = None, prim_type: str | None = None, first_match_only: bool = False
+    match_strings: list[str], root_path: str | None = None, prim_type: str | None = None, first_match_only: bool = False,
+    exception_prim_strings: list[str] = []
 ) -> Usd.Prim | list[Usd.Prim] | None:
     """Find prims matching specified strings, with optional type filtering and single match return."""
     stage = omni.usd.get_context().get_stage()
     root_prim = stage.GetPseudoRoot() if root_path is None else stage.GetPrimAtPath(root_path)
 
     matching_prims = []
+    print(root_prim)
     for prim in Usd.PrimRange(root_prim):
+        # print(str(prim.GetPath()))
+        if os.path.basename(str(prim.GetPath())) in [os.path.basename(exp_prim_str) for exp_prim_str in exception_prim_strings]:
+            print(f"*************************移除标记好的可疑prim：{prim}***********************")
+            continue
         if any(match in str(prim.GetPath()) for match in match_strings):
             if prim_type is None or prim.GetTypeName() == prim_type:
                 if first_match_only:
@@ -812,77 +837,161 @@ def setup_writer(config: dict) -> None:
     return writer
 
 
+def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim):
+    print(f'******************进入环境基于桌面移动的函数{plain_prim}**************************')
+
+    bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
+
+    table_world_bound_bbox = bbox_cache.ComputeWorldBound(plain_prim)
+    table_world_bound_aligned_range = table_world_bound_bbox.ComputeAlignedRange()
+
+    table_size = table_world_bound_aligned_range.GetSize()
+    table_center = table_world_bound_aligned_range.GetMidpoint()
+
+
+    target_world_bbox = bbox_cache.ComputeWorldBound(target_prim)
+    target_world_range = target_world_bbox.ComputeAlignedRange()
+
+    target_asset_size = target_world_range.GetSize()
+    target_asset_min = target_world_range.GetMin()
+    # target_asset_max = target_world_range.GetMax()
+
+    target_asset_center = target_world_range.GetMidpoint()
+    # print(table_size)
+
+    ## 求出target_asset 在桌面上的可移动范围：
+    x_padding = table_size[0]*.1
+    z_padding = table_size[2]*.1
+    x_delta = (table_size[0]-target_asset_size[0] - x_padding) / 2
+    z_delta = (table_size[2]-target_asset_size[2]- z_padding) / 2
+
+    x_location = random.uniform(target_asset_center[0]-x_delta, target_asset_center[0]+x_delta)
+    z_location = random.uniform(target_asset_center[2]-z_delta, target_asset_center[2]+z_delta)
+    y_location = target_asset_min[1] - table_size[1]/2
 
 
 
-# ---- 常量：按位标志（X/Y/Z） ----
-AXIS_X = 1 << 0  # 1
-AXIS_Y = 1 << 1  # 2
-AXIS_Z = 1 << 2  # 4
+    table_center_target_location = (x_location, y_location, z_location)
 
-def _get_stage():
-    return omni.usd.get_context().get_stage()
 
-def _ensure_rigid_physx_api(prim):
-    # 确保挂上 RigidBody 和 PhysX 扩展属性（幂等；已存在则忽略）
-    UsdPhysics.RigidBodyAPI.Apply(prim)
-    PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
-    return PhysxSchema.PhysxRigidBodyAPI.Get(prim.GetStage(), prim.GetPath())
+    target_origin_delta = Gf.Vec3d(table_center_target_location)-Gf.Vec3d(table_center)
 
-def lock_rotation_axes(prim_path: str, lock_x: bool, lock_y: bool, lock_z: bool):
-    """
-    锁定刚体的旋转轴（世界坐标系）。例如：lock_x=True, lock_y=False, lock_z=True -> 只允许绕Y旋转。
-    """
-    stage = _get_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim:
-        raise RuntimeError(f"Prim 不存在: {prim_path}")
+    dinning_room_xform = plain_prim.GetParent()
 
-    api = _ensure_rigid_physx_api(prim)
+    # stage = omni.usd.get_context().get_stage()
+    # dinning_room_xform_path = Sdf.Path('/Environment')
+    # dinning_room_xform = stage.GetPrimAtPath(dinning_room_xform_path)
+    
+    dinning_room_ori_location = dinning_room_xform.GetAttribute("xformOp:translate").Get()
+    dinning_room_xform.GetAttribute("xformOp:translate").Set(dinning_room_ori_location+target_origin_delta)
+    print(f'dst_location:{dinning_room_ori_location+target_origin_delta}')
 
-    mask = 0
-    if lock_x: mask |= AXIS_X
-    if lock_y: mask |= AXIS_Y
-    if lock_z: mask |= AXIS_Z
+def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdShade.Material]:
+    root = stage.GetPrimAtPath(looks_root)
+    if not root:
+        return []
+    mats = []
+    for p in Usd.PrimRange(root):
+        if p.IsA(UsdShade.Material):
+            m = UsdShade.Material(p)
+            mats.append(m)
+    return mats
 
-    # 写入 lockedRotAxis（int bitmask）
-    api.CreateLockedRotAxisAttr().Set(mask)
 
-def set_angular_damping(prim_path: str, damping: float):
-    """
-    设置角阻尼（无单位量纲，典型取值 0.05~2.0；越大旋转衰减越快）。
-    """
-    stage = _get_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim:
-        raise RuntimeError(f"Prim 不存在: {prim_path}")
+def bind_random_material_to_prim(prim, mats):
+    bind_material = random.choice(mats)
+    UsdShade.MaterialBindingAPI(prim).Bind(bind_material)
+    print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
 
-    api = _ensure_rigid_physx_api(prim)
-    api.CreateAngularDampingAttr().Set(float(damping))
 
-def set_max_angular_velocity(prim_path: str, max_deg_per_s: float):
-    """
-    限制最大角速度（单位：度/秒）。例如 360 表示每秒上限 360°。
-    """
-    stage = _get_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim:
-        raise RuntimeError(f"Prim 不存在: {prim_path}")
+def random_gprim_color(prim:UsdGeom.Gprim):
+    # print(prim)
+    if prim.IsA(UsdGeom.Gprim):
+        # 随机颜色（也可从你的调色板里抽样）
+        color = Vt.Vec3fArray((random.random(), random.random(), random.random()))
+        pv_api = UsdGeom.PrimvarsAPI(prim)
+        pv = pv_api.CreatePrimvar("displayColor",
+                                Sdf.ValueTypeNames.Color3f,
+                                UsdGeom.Tokens.constant)
+        pv.Set(color)
 
-    api = _ensure_rigid_physx_api(prim)
-    api.CreateMaxAngularVelocityAttr().Set(float(max_deg_per_s))
+def bind_matirial_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Material]):
+    if prim.IsA(UsdGeom.Subset):
+        
+        bind_random_material_to_prim(prim, materials)
 
-"""
-ASSET = "/World/Asset"  # 你的刚体 prim 路径
 
-# 1) 锁定旋转：锁 X、Z，只允许绕 Y（适合 Y-up 的场景防“侧翻”）
-lock_rotation_axes(ASSET, lock_x=True, lock_y=False, lock_z=True)
 
-# 2) 提高角阻尼（更快止转）
-set_angular_damping(ASSET, damping=1.0)
 
-# 3) 限制最大角速度（避免瞬时碰撞导致夸张旋转）
-set_max_angular_velocity(ASSET, max_deg_per_s=360.0)
 
-"""
+# # ---- 常量：按位标志（X/Y/Z） ----
+# AXIS_X = 1 << 0  # 1
+# AXIS_Y = 1 << 1  # 2
+# AXIS_Z = 1 << 2  # 4
+
+# def _get_stage():
+#     return omni.usd.get_context().get_stage()
+
+# def _ensure_rigid_physx_api(prim):
+#     # 确保挂上 RigidBody 和 PhysX 扩展属性（幂等；已存在则忽略）
+#     UsdPhysics.RigidBodyAPI.Apply(prim)
+#     PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
+#     return PhysxSchema.PhysxRigidBodyAPI.Get(prim.GetStage(), prim.GetPath())
+
+# def lock_rotation_axes(prim_path: str, lock_x: bool, lock_y: bool, lock_z: bool):
+#     """
+#     锁定刚体的旋转轴（世界坐标系）。例如：lock_x=True, lock_y=False, lock_z=True -> 只允许绕Y旋转。
+#     """
+#     stage = _get_stage()
+#     prim = stage.GetPrimAtPath(prim_path)
+#     if not prim:
+#         raise RuntimeError(f"Prim 不存在: {prim_path}")
+
+#     api = _ensure_rigid_physx_api(prim)
+
+#     mask = 0
+#     if lock_x: mask |= AXIS_X
+#     if lock_y: mask |= AXIS_Y
+#     if lock_z: mask |= AXIS_Z
+
+#     # 写入 lockedRotAxis（int bitmask）
+#     api.CreateLockedRotAxisAttr().Set(mask)
+
+# def set_angular_damping(prim_path: str, damping: float):
+#     """
+#     设置角阻尼（无单位量纲，典型取值 0.05~2.0；越大旋转衰减越快）。
+#     """
+#     stage = _get_stage()
+#     prim = stage.GetPrimAtPath(prim_path)
+#     if not prim:
+#         raise RuntimeError(f"Prim 不存在: {prim_path}")
+
+#     api = _ensure_rigid_physx_api(prim)
+#     api.CreateAngularDampingAttr().Set(float(damping))
+
+# def set_max_angular_velocity(prim_path: str, max_deg_per_s: float):
+#     """
+#     限制最大角速度（单位：度/秒）。例如 360 表示每秒上限 360°。
+#     """
+#     stage = _get_stage()
+#     prim = stage.GetPrimAtPath(prim_path)
+#     if not prim:
+#         raise RuntimeError(f"Prim 不存在: {prim_path}")
+
+#     api = _ensure_rigid_physx_api(prim)
+#     api.CreateMaxAngularVelocityAttr().Set(float(max_deg_per_s))
+
+# """
+# ASSET = "/World/Asset"  # 你的刚体 prim 路径
+
+# # 1) 锁定旋转：锁 X、Z，只允许绕 Y（适合 Y-up 的场景防“侧翻”）
+# lock_rotation_axes(ASSET, lock_x=True, lock_y=False, lock_z=True)
+
+# # 2) 提高角阻尼（更快止转）
+# set_angular_damping(ASSET, damping=1.0)
+
+# # 3) 限制最大角速度（避免瞬时碰撞导致夸张旋转）
+# set_max_angular_velocity(ASSET, max_deg_per_s=360.0)
+
+# """
 

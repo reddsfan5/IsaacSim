@@ -19,4 +19,3 @@ def get_extention_path(extention_python_path='omni.replicator.core'):
 
 get_extention_path('omni.replicator.isaac')
 
-

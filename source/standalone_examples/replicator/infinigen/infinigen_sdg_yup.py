@@ -213,7 +213,9 @@ import omni.replicator.core as rep
 import omni.timeline
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import UsdGeom,Gf
+from pxr import UsdGeom,Gf,Usd
+from omni.isaac.core.utils.stage import add_reference_to_stage
+
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
 
@@ -396,10 +398,10 @@ def run_sdg(config):
     wait_after_each_capture = bool(capture_config.get("wait_after_each_capture", True))
     
 
-    scene_6_location_for_airship = [(-1.8,-0.137,2.7),]
-    scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9),(-12.3,-0.8836,7.4),(-11.8,-0.8836,7.5),(-11.1,-0.65,8.1)]
+    # scene_6_location_for_airship = [(-1.8,-0.137,2.7),]
+    # scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9),(-12.3,-0.8836,7.4),(-11.8,-0.8836,7.5),(-11.1,-0.65,8.1)]
     # scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9)]
-    scene_select = scene_7_location_for_airship
+    # scene_select = scene_7_location_for_airship
     
     # ⭐循环场景，开始捕获数据⭐
     # Start the SDG loop
@@ -438,21 +440,74 @@ def run_sdg(config):
         infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
         simulation_app.update()
 
-        # Get the location of the prim above which the assets will be randomized
-        working_area_loc = infinigen_utils.get_matching_prim_location(
-            match_string="TableDining", root_path="/Environment"
-        )
+
+
+    
+
+        # 指定USD文件路径和期望在舞台中的根路径（Prim Path）
+        usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
+        prim_path = "/World/general_looks"
+
+        # 将USD文件作为引用添加到当前舞台
+        add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
 
         stage = omni.usd.get_context().get_stage()
-        prim = stage.GetPrimAtPath('/Environment')
-        infinigen_utils.set_transform_attributes(prim,location=Gf.Vec3f(*random.choice(scene_select)))
+
+        # Get the plane prim 
+
+        # match_string = random.choice(["TableDining"])
+        match_string = random.choice(["TableDining"])
+        root_path= '/Environment'
+
+        plane_prims = infinigen_utils.find_matching_prims(
+            match_strings=[match_string], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
+            '/World/dining_room_4/TableDiningFactory_3810673__spawn_asset_8768607__001',
+            '/World/dining_room_5/TableDiningFactory_6160158__spawn_asset_9053640__001'
+            '/World/dining_room_6/TableDiningFactory_5756319__spawn_asset_664843__001',
+            '/World/dining_room_8/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS']
+        )
+
+        # print(plane_prims)
+        # plane_prim = plane_prims[1]
+
+
+        for plane_prim in plane_prims:
+
+            # modify the material of the plane
+            materials = infinigen_utils.find_materials(stage, "/World/general_looks/Looks")
+            is_maintain_material_structure = False
+            for prim in Usd.PrimRange(plane_prim):
+                # print(f'----------------{prim}------------------')
+                if prim.IsA(UsdGeom.Gprim):
+                    if not is_maintain_material_structure:
+                        infinigen_utils.bind_random_material_to_prim(prim,materials)
+
+                    infinigen_utils.random_gprim_color(prim)
+
+
+                elif prim.IsA(UsdGeom.Subset):
+                    infinigen_utils.bind_matirial_to_subset(prim,materials)
+
+        plane_prim = random.choice(plane_prims)
+
+
+
+        # translate the env location to make the plane under target prim
+        infinigen_utils.translate_env_under_target_asset(plane_prim,manual_falling_assets[0])
+
+        
+
+
+        # stage = omni.usd.get_context().get_stage()
+        # prim = stage.GetPrimAtPath('/Environment')
+        # infinigen_utils.set_transform_attributes(prim,location=Gf.Vec3f(*random.choice(scene_select)))
 
 
 
 
-        working_area_loc_abs = infinigen_utils.convert_rotated_location_to_abs(working_area_loc)
+        # working_area_loc_abs = infinigen_utils.convert_rotated_location_to_abs(working_area_loc)
 
-        print(f"桌子位置:{working_area_loc_abs}")
+        # print(f"桌子位置:{working_area_loc_abs}")
 
         # ⭐视窗相机位置和角度设置⭐
         # Move viewport above the working area to get a top-down view of the scene
@@ -492,26 +547,28 @@ def run_sdg(config):
         )
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
-        mesh_loc_range = infinigen_utils.offset_range((-1, -1, 1, 1, 1, 2), working_area_loc_abs)
+
+        
+        mesh_loc_range = infinigen_utils.offset_range((-0.5, 0, 0.15, 0.5, 0.1, 0.2), working_area_loc_abs)
         infinigen_utils.randomize_poses(
             mesh_distractors,
             location_range=mesh_loc_range,
             rotation_range=(0, 25),
-            scale_range=(0.3, 1.0),
+            scale_range=(0.1, 0.3),
         )
 
         # Shape distractors
         print(f"\tRandomizing {len(shape_distractors)} shape distractors around the working area")
-        shape_loc_range = infinigen_utils.offset_range((-1.5, -1.5, 1, 1.5, 1.5, 2), working_area_loc_abs)
+        shape_loc_range = infinigen_utils.offset_range((-0.5, 0, -0.15, 0.5, 0.1, -0.2), working_area_loc_abs)
         infinigen_utils.randomize_poses(
             shape_distractors,
             location_range=shape_loc_range,
             rotation_range=(0, 25),
-            scale_range=(0.01, 0.1),
+            scale_range=(0.05, 0.08),
         )
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range((-0.5, -0.5, .5, 0.5, 0.5, 1.5), working_area_loc_abs)
+        lights_loc_range = infinigen_utils.offset_range((-0.5, -0.1, .5, 0.5, 0.8, 1.5), working_area_loc_abs)
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,
@@ -556,7 +613,7 @@ def run_sdg(config):
             # Randomize the camera poses
             print(f"\tRandomizing {len(cameras)} camera poses")
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=(0, 65)
+                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=(65, 90)
             )
             
             simulation_app.update()
@@ -648,10 +705,10 @@ def run_sdg(config):
 # Check if debug mode is enabled
 debug_mode = config.get("debug_mode", False)
 
-if debug_mode:
-    np.random.seed(10)
-    random.seed(10)
-    rep.set_global_seed(10)
+# if debug_mode:
+#     np.random.seed(11)
+#     random.seed(11)
+#     rep.set_global_seed(11)
 
 # Start the SDG pipeline
 print(f"[SDG-Infinigen] Starting the SDG pipeline.")

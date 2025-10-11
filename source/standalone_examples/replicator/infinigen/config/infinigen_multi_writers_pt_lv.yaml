@@ -16,14 +16,14 @@
 environments:
   # List of background environments (list of folders or files)
   folders:
-    - /Isaac/Samples/Replicator/Infinigen/dining_rooms/dining_room_7/
-    # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms/
+    - /Isaac/Samples/Replicator/Infinigen/dining_rooms
+    # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms
   
   files: []
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 10000
+  total_captures: 20000
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
@@ -41,7 +41,7 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.7, 2.8]
+  camera_distance_to_target_range: [.7, 2.3]
   # Number of scene lights to create in the working area
   num_scene_lights: 8
 
@@ -49,7 +49,7 @@ writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
   - type: BasicWriter
     kwargs:
-      output_dir: "_out_infinigen_basicwriter_lv_0918_v2"
+      output_dir: "/data2/data/_out_infinigen_basicwriter_lv_1009_v2"
       rgb: false
       semantic_segmentation: true
       colorize_semantic_segmentation: true
@@ -66,7 +66,7 @@ writers:
     # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
   - type: PoseWriter
     kwargs:
-      output_dir: "_out_infinigen_posewriter_lv_0918_v2"
+      output_dir: "/data2/data/_out_infinigen_posewriter_lv_1009_v2"
       format: null # dope ; centerpose
       use_subfolders: True
       write_debug_images: True
@@ -101,21 +101,33 @@ labeled_assets:
     #   label: airship
     #   num: 1
     #   gravity_disabled_chance: 0.25
-    - url: file:///home/ubuntu/lxd/usd_file/glb/airship_007_opacity.usd
-      label: airship_007
-      num: 0
-      gravity_disabled_chance: 0
+
     - url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
       label: airship
+      num: 0
+      gravity_disabled_chance: 0
+
+    - url: file:///home/ubuntu/lxd/usd_file/glb/converted/AM114_33.usd
+      label: airship
+      num: 0
+      gravity_disabled_chance: 0
+
+    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
+      label: jj
       num: 1
       gravity_disabled_chance: 0
+
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk3.usd
+    #   label: disk
+    #   num: 1
+    #   gravity_disabled_chance: 0
 
 
 distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 0
+    num: 8
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
     # List of shape types to randomly choose from
@@ -124,7 +136,7 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 0
+    num: 8
     # Chance to disable gravity for the mesh distractors
     gravity_disabled_chance: 0.25
     # List of folders and files to search to randomly choose from
@@ -132,7 +144,7 @@ distractors:
       - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/
       - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Cones/
     files:
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_TrafficCone.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_WetFloorSign.usd
