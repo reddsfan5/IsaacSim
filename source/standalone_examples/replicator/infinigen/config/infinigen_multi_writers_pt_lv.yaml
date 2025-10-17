@@ -17,13 +17,14 @@ environments:
   # List of background environments (list of folders or files)
   folders:
     # - /Isaac/Samples/Replicator/Infinigen/dining_rooms
-    - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms
+    # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms
+    - file:///home/ubuntu/lxd/lxd_code/infinigen/outputs/omniverse
   
   files: []
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 10
+  total_captures: 300
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)

@@ -466,7 +466,8 @@ def hide_matching_prims(match_strings: list[str], root_path: str | None = None, 
 def setup_env(root_path: str | None = None, approximation_type: str = "none", hide_top_walls: bool = False) -> None:
     """Set up the environment with colliders, ceiling light adjustments, and optional top wall hiding."""
     # Fix ceiling lights: meshes are blocking the light and need to be set to invisible
-    ceiling_light_meshes = find_matching_prims(["001_SPLIT_GLA"], root_path, "Xform")
+    ceiling_light_meshes = find_matching_prims(["001_SPLIT_GLA","PointLamp"], root_path, "Xform")
+
     for light_mesh in ceiling_light_meshes:
         light_mesh.GetAttribute("visibility").Set("invisible")
 

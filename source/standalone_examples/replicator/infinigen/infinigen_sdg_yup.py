@@ -572,6 +572,13 @@ def run_sdg(config):
             color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
         )
 
+        # infinigen_utils.randomize_lights(
+        #     scene_lights,
+        #     location_range=lights_loc_range,
+        #     intensity_range=(180, 250),
+        #     color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
+        # )
+
         print(f"\tRandomizing dome lights")
         rep.utils.send_og_event(event_name="randomize_dome_lights")
 
