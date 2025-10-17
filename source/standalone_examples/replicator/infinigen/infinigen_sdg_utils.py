@@ -18,6 +18,7 @@ import os
 import random
 import re
 from itertools import chain
+import time
 import numpy as np
 import omni.kit.app
 import omni.kit.commands
@@ -271,7 +272,13 @@ def euler_to_quaternion(roll, pitch, yaw):
     # 返回Gf.Quatf（四元数类型）
     return Gf.Quatf(w, x, y, z)
 
-
+def camera_prim_set(cam_prim:Usd.Prim,verticalAperture:float=24.0,
+                    horizontalAperture:float=36.0,
+                    focalLength:float=34.0
+                    ):
+    cam_prim.GetAttribute("verticalAperture").Set(verticalAperture)
+    cam_prim.GetAttribute("horizontalAperture").Set(horizontalAperture)
+    cam_prim.GetAttribute("focalLength").Set(focalLength)
 
 
 
@@ -384,7 +391,7 @@ def get_usd_paths(
     return env_paths
 
 
-def load_env(usd_path: str, prim_path: str, remove_existing: bool = True) -> Usd.Prim:
+def load_env(usd_path: str, prim_path: str,simulation_app, remove_existing: bool = True) -> Usd.Prim:
     """Load an environment from a USD file into the stage at the specified prim path, optionally removing any existing prim."""
     stage = omni.usd.get_context().get_stage()
 
@@ -392,6 +399,9 @@ def load_env(usd_path: str, prim_path: str, remove_existing: bool = True) -> Usd
     if remove_existing and stage.GetPrimAtPath(prim_path):
         omni.kit.commands.execute("DeletePrimsCommand", paths=[prim_path])
 
+    for _ in range(3):
+        simulation_app.update()
+    # prim_path = omni.usd.get_stage_next_free_path(stage,prim_path,False)    
     root_prim = add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
     return root_prim
 
@@ -520,6 +530,7 @@ def create_mesh_distractors(
 def load_mesh_distractors(mesh_distractors_config: dict) -> tuple[list[Usd.Prim], list[Usd.Prim]]:
     """Load mesh distractors based on configuration, returning lists of floating and falling meshes."""
     num_meshes = mesh_distractors_config.get("num", 0)
+    
     mesh_gravity_disabled_chance = mesh_distractors_config.get("gravity_disabled_chance", 0.0)
     mesh_folders = mesh_distractors_config.get("folders", [])
     mesh_files = mesh_distractors_config.get("files", [])
@@ -893,7 +904,7 @@ def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdSha
     mats = []
     for p in Usd.PrimRange(root):
         if p.IsA(UsdShade.Material):
-            m = UsdShade.Material(p)
+            m = UsdShade.Material(p) # only been wraped can be binding to mesh.
             mats.append(m)
     return mats
 
@@ -915,83 +926,7 @@ def random_gprim_color(prim:UsdGeom.Gprim):
                                 UsdGeom.Tokens.constant)
         pv.Set(color)
 
-def bind_matirial_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Material]):
-    if prim.IsA(UsdGeom.Subset):
+# def bind_matirial_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Material]):
+#     if prim.IsA(UsdGeom.Subset):
         
-        bind_random_material_to_prim(prim, materials)
-
-
-
-
-
-# # ---- 常量：按位标志（X/Y/Z） ----
-# AXIS_X = 1 << 0  # 1
-# AXIS_Y = 1 << 1  # 2
-# AXIS_Z = 1 << 2  # 4
-
-# def _get_stage():
-#     return omni.usd.get_context().get_stage()
-
-# def _ensure_rigid_physx_api(prim):
-#     # 确保挂上 RigidBody 和 PhysX 扩展属性（幂等；已存在则忽略）
-#     UsdPhysics.RigidBodyAPI.Apply(prim)
-#     PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
-#     return PhysxSchema.PhysxRigidBodyAPI.Get(prim.GetStage(), prim.GetPath())
-
-# def lock_rotation_axes(prim_path: str, lock_x: bool, lock_y: bool, lock_z: bool):
-#     """
-#     锁定刚体的旋转轴（世界坐标系）。例如：lock_x=True, lock_y=False, lock_z=True -> 只允许绕Y旋转。
-#     """
-#     stage = _get_stage()
-#     prim = stage.GetPrimAtPath(prim_path)
-#     if not prim:
-#         raise RuntimeError(f"Prim 不存在: {prim_path}")
-
-#     api = _ensure_rigid_physx_api(prim)
-
-#     mask = 0
-#     if lock_x: mask |= AXIS_X
-#     if lock_y: mask |= AXIS_Y
-#     if lock_z: mask |= AXIS_Z
-
-#     # 写入 lockedRotAxis（int bitmask）
-#     api.CreateLockedRotAxisAttr().Set(mask)
-
-# def set_angular_damping(prim_path: str, damping: float):
-#     """
-#     设置角阻尼（无单位量纲，典型取值 0.05~2.0；越大旋转衰减越快）。
-#     """
-#     stage = _get_stage()
-#     prim = stage.GetPrimAtPath(prim_path)
-#     if not prim:
-#         raise RuntimeError(f"Prim 不存在: {prim_path}")
-
-#     api = _ensure_rigid_physx_api(prim)
-#     api.CreateAngularDampingAttr().Set(float(damping))
-
-# def set_max_angular_velocity(prim_path: str, max_deg_per_s: float):
-#     """
-#     限制最大角速度（单位：度/秒）。例如 360 表示每秒上限 360°。
-#     """
-#     stage = _get_stage()
-#     prim = stage.GetPrimAtPath(prim_path)
-#     if not prim:
-#         raise RuntimeError(f"Prim 不存在: {prim_path}")
-
-#     api = _ensure_rigid_physx_api(prim)
-#     api.CreateMaxAngularVelocityAttr().Set(float(max_deg_per_s))
-
-# """
-# ASSET = "/World/Asset"  # 你的刚体 prim 路径
-
-# # 1) 锁定旋转：锁 X、Z，只允许绕 Y（适合 Y-up 的场景防“侧翻”）
-# lock_rotation_axes(ASSET, lock_x=True, lock_y=False, lock_z=True)
-
-# # 2) 提高角阻尼（更快止转）
-# set_angular_damping(ASSET, damping=1.0)
-
-# # 3) 限制最大角速度（避免瞬时碰撞导致夸张旋转）
-# set_max_angular_velocity(ASSET, max_deg_per_s=360.0)
-
-# """
-
+#         bind_random_material_to_prim(prim, materials)

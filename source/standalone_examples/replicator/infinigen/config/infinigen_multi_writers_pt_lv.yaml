@@ -23,13 +23,13 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 20000
+  total_captures: 9
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 100
+  num_dropped_captures_per_env: 3
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 5
+  num_cameras: 3
   # Resolution of the captured frames
   resolution: [640, 480]
   # Disable render products throughout the pipeline, enable them only when capturing the frames
@@ -41,19 +41,29 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [.7, 2.3]
+  camera_distance_to_target_range: [.5, 2.5]
   # Number of scene lights to create in the working area
   num_scene_lights: 8
+  polar_angle_range: [0,90]
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
   - type: BasicWriter
     kwargs:
-      output_dir: "/data2/data/_out_infinigen_basicwriter_lv_1009_v2"
+      output_dir: "/data2/data/_out_infinigen_basicwriter_lv_1016_jj_v1"
       rgb: false
       semantic_segmentation: true
       colorize_semantic_segmentation: true
       bounding_box_2d_tight: true
+
+  - type: PoseWriter
+    kwargs:
+      output_dir: "/data2/data/_out_infinigen_posewriter_lv_1016_jj_v1"
+      format: null # dope ; centerpose
+      use_subfolders: true
+      write_debug_images: true
+      skip_empty_frames: true
+
   # - type: DataVisualizationWriter
   #   kwargs:
   #     output_dir: "_out_infinigen_dataviswriter_lv"
@@ -63,14 +73,8 @@ writers:
       # bounding_box_3d: true
   #     bounding_box_3d_params:
   #       background: normals
-    # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
-  - type: PoseWriter
-    kwargs:
-      output_dir: "/data2/data/_out_infinigen_posewriter_lv_1009_v2"
-      format: null # dope ; centerpose
-      use_subfolders: True
-      write_debug_images: True
-      skip_empty_frames: True
+
+
 labeled_assets:
   # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
   auto_label:
@@ -107,20 +111,15 @@ labeled_assets:
       num: 0
       gravity_disabled_chance: 0
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/converted/AM114_33.usd
-      label: airship
-      num: 0
-      gravity_disabled_chance: 0
-
     - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
       label: jj
       num: 1
       gravity_disabled_chance: 0
 
-    # - url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk3.usd
-    #   label: disk
-    #   num: 1
-    #   gravity_disabled_chance: 0
+    - url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk2.usd
+      label: disk
+      num: 0
+      gravity_disabled_chance: 0
 
 
 distractors:
@@ -128,6 +127,11 @@ distractors:
   shape_distractors:
     # Amount of shape distractors to create
     num: 8
+    location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
+      x: [-0.5,0.5]
+      y: [0,0.5]
+      z: [-0.1,-1]
+    scale_range: [0.02,0.05]
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
     # List of shape types to randomly choose from
@@ -138,6 +142,12 @@ distractors:
     # Amount of mesh distractors to create
     num: 8
     # Chance to disable gravity for the mesh distractors
+    location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
+      x: [-0.5,0.5]
+      y: [0,0.5]
+      z: [0.1,0.5]
+    scale_range: [0.15,0.25]
+
     gravity_disabled_chance: 0.25
     # List of folders and files to search to randomly choose from
     folders:
@@ -156,6 +166,27 @@ distractors:
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBag_01a.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBox_01g.usd
 
+
+materials_control: 
+  classic_materials:
+
+    usd_file_path: /home/ubuntu/lxd/usd_file/glb/general_Looks.usd
+    scope_path: /general_looks
+  
+  pbr:
+    materials_root: /pbr_materials
+    pbr_prob: 0.2
+    color: [0,1]
+    metallic_constant: [0.1,0.99]
+    reflection_roughness: [0.01,1]
+    texture_scale: [.8,2]
+    translate: [1,50]
+    texture_root: /home/ubuntu/lxd/usd_file/imgs
+    project_uvw: true
+
+
+
+
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: false
-headless: true
+debug_mode: true
+headless: false
