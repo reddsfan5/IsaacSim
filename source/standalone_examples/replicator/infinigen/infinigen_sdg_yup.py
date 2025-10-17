@@ -23,9 +23,12 @@ import os
 from pathlib import Path
 import string
 import sys
+from numpy.core import numerictypes
 import yaml
 from isaacsim import SimulationApp
 import traceback
+
+
 
 
 # Default config dict, can be updated/replaced using json/yaml config files ('--config' cli argument)
@@ -206,7 +209,39 @@ from omni.isaac.core.utils.stage import add_reference_to_stage
 
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
-from lv_tools.material_change import bind_material_to_prim_randomly, bind_materials_to_prims_recursively, create_pbr_with_texture
+from lv_tools.material_change import bind_material_to_prim_randomly, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
+from lv_tools.material_change import random_gprim_color
+
+def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,num:int=50)->list[UsdShade.Material]:
+
+    '''
+    耦合当前配置文件的业务逻辑函数
+    
+    '''
+
+    texture_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
+    metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
+    reflection_roughness = random.uniform(*materials_control_config['pbr']['reflection_roughness'])
+    scale = random.uniform(*materials_control_config['pbr']['texture_scale'])
+    
+    translate = random.randint(*materials_control_config['pbr']['translate'])
+    project_uvw = materials_control_config['pbr']['project_uvw']
+    omni_pbr_materials = []
+
+    for _ in range(num):
+        pbr_base_name = 'omni_pbr'
+        pbr_material_prim_path = omni.usd.get_stage_next_free_path(stage,os.path.join(materials_control_config['pbr']['materials_root'],pbr_base_name),False)
+        omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
+                                                    str(random.choice(texture_paths)),
+                                                    metallic_constant,
+                                                    reflection_roughness,
+                                                    scale,
+                                                    translate,
+                                                    project_uvw)
+        omni_pbr_materials.append(omni_pbr_material)
+    return omni_pbr_materials
+
+
 
 def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool, wait_after: bool):
     rep.orchestrator.step(rt_subframes=max(1, rt_subframes), delta_time=delta_time, pause_timeline=pause_timeline)
@@ -371,61 +406,24 @@ def run_sdg(config):
     step_delta_time = float(capture_config.get("step_delta_time", 0.0))
     wait_after_each_capture = bool(capture_config.get("wait_after_each_capture", True))
     
+    materials = []
 
-    # usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
-    # prim_path = "/general_looks"
 
     # # 将USD文件作为引用添加到当前舞台
-    # add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
+    usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
+    prim_path = "/general_looks"
+    add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
+    classic_materials = infinigen_utils.find_materials(stage, "/general_looks/Looks")
+    materials.extend(classic_materials)
 
-    texture_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
-    metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
-    reflection_roughness = random.uniform(*materials_control_config['pbr']['reflection_roughness'])
-    scale = random.uniform(*materials_control_config['pbr']['texture_scale'])
-    
-    translate = random.randint(*materials_control_config['pbr']['translate'])
-    project_uvw = materials_control_config['pbr']['project_uvw']
-    omni_pbr_materials = []
-    for _ in range(30):
-        pbr_base_name = 'omni_pbr'
-        pbr_material_prim_path = omni.usd.get_stage_next_free_path(stage,os.path.join(materials_control_config['pbr']['materials_root'],pbr_base_name),False)
-        omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
-                                                    str(random.choice(texture_paths)),
-                                                    metallic_constant,
-                                                    reflection_roughness,
-                                                    scale,
-                                                    translate,
-                                                    project_uvw)
-        omni_pbr_materials.append(omni_pbr_material)
 
-    materials = []
-    # materials = infinigen_utils.find_materials(stage, "/general_looks/Looks")
-    
+    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,50)
     materials.extend(omni_pbr_materials)
 
-
-    for target_asset in target_assets:
-        
-        is_maintain_material_structure = False
-        for prim in Usd.PrimRange(target_asset):
-            try:
-                if prim.IsA(UsdGeom.Gprim):
-                    if is_maintain_material_structure:
-                        bind_material_to_prim_randomly(prim,materials)
-
-                    infinigen_utils.random_gprim_color(target_asset)
-
-
-                elif prim.IsA(UsdGeom.Subset):
-                    bind_material_to_prim_randomly(prim,materials)
-            except:
-                continue
-
+    bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=False)
 
     bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
 
-    
-    
     
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
     # Start the SDG loop
@@ -460,56 +458,16 @@ def run_sdg(config):
         #     except:
         #         pass
 
-
-        for target_asset in target_assets:
-            
-            is_maintain_material_structure = True
-            for prim in Usd.PrimRange(target_asset):
-                try:
-                    if prim.IsA(UsdGeom.Gprim):
-                        if is_maintain_material_structure:
-                            bind_material_to_prim_randomly(prim,materials)
-
-                        infinigen_utils.random_gprim_color(target_asset)
-
-
-                    elif prim.IsA(UsdGeom.Subset):
-                        bind_material_to_prim_randomly(prim,materials)
-                except:
-                    continue
-        
-        
-
-
-        
-        # bind_materials_to_prims_recursively(plane_prim,[omni_pbr_material],is_mesh_bind_material=True)
-        # bind_materials_to_prims_recursively(distractors,[omni_pbr_material],is_mesh_bind_material=True)
+        infinigen_utils.remove_prim('/Assets',simulation_app)
+        manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
+        target_assets = manual_falling_assets
 
 
 
+        bind_materials_to_assets(
+            target_assets,materials,
+            is_maintain_material_structure=False)
 
-        
-        # for target_asset in target_assets:
-            
-        #     is_maintain_material_structure = False
-        #     for prim in Usd.PrimRange(target_asset):
-        #         try:
-        #             if prim.IsA(UsdGeom.Gprim):
-        #                 if is_maintain_material_structure:
-        #                     bind_material_to_prim_randomly(prim,materials)
-
-        #                 infinigen_utils.random_gprim_color(target_asset)
-
-
-        #             elif prim.IsA(UsdGeom.Subset):
-        #                 bind_material_to_prim_randomly(prim,materials)
-        #         except:
-        #             continue
-        
-        # # 试图解决材质变化导致的坐标集于一点的问题
-        # for _ in range(10):
-        #     simulation_app.update()
-        
 
         # Load the new environment
         print(f"[SDG-Infinigen] Loading environment: {env_url}")
@@ -539,30 +497,12 @@ def run_sdg(config):
             ] 
         )
 
-
-
-
         # random asset plain
 
-        for plane_prim in plane_prims:
-
-            # modify the material of the plane
-            is_maintain_material_structure = True
-            for prim in Usd.PrimRange(plane_prim):
-                # print(f'----------------{prim}------------------')
-                if prim.IsA(UsdGeom.Gprim):
-                    if is_maintain_material_structure:
-                        infinigen_utils.bind_random_material_to_prim(prim,materials)
-
-                    infinigen_utils.random_gprim_color(prim)
-
-
-                elif prim.IsA(UsdGeom.Subset):
-                    infinigen_utils.bind_random_material_to_prim(prim,materials)
-
+        bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
         plane_prim = random.choice(plane_prims)
+
         
-        distractors = stage.GetPrimAtPath('/Distractors')
 
 
 
@@ -713,6 +653,8 @@ def run_sdg(config):
             # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
             print(f"\tRandomizing camera poses")
 
+            distractors = stage.GetPrimAtPath('/Distractors')
+
             if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
                 bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
                 bind_materials_to_prims_recursively(distractors,omni_pbr_materials,is_mesh_bind_material=True)
@@ -743,8 +685,7 @@ def run_sdg(config):
             carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
 
 
-        #todo Wait until the data is written to the disk
-        # rep.orchestrator.wait_until_complete()
+
 
     #todo 跑一段物理（掉落阶段）
     print(f"\tRunning the simulation (drop phase)")

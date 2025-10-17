@@ -171,16 +171,7 @@ def rand_pbr(asset_prim_path:str):
         pass
 
 
-def random_gprim_color(prim:UsdGeom.Gprim):
-    # print(prim)
-    if prim.IsA(UsdGeom.Gprim):
-        # 随机颜色（也可从你的调色板里抽样）
-        color = Vt.Vec3fArray((random.random(), random.random(), random.random()))
-        pv_api = UsdGeom.PrimvarsAPI(prim)
-        pv = pv_api.CreatePrimvar("displayColor",
-                                Sdf.ValueTypeNames.Color3f,
-                                UsdGeom.Tokens.constant)
-        pv.Set(color)
+
 
 def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdShade.Material]:
     root = stage.GetPrimAtPath(looks_root)
@@ -202,8 +193,9 @@ def bind_material_to_prim_with_seed_randomly(prim:UsdGeom.Gprim, mats:list[UsdSh
     bind_material_to_prim(prim,m)
 
 def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Material],bindingStrength:str=UsdShade.Tokens.strongerThanDescendants):
-    m = random.choice(mats)
-    bind_material_to_prim(prim,m,bindingStrength=bindingStrength)
+    bind_material = random.choice(mats)
+    bind_material_to_prim(prim,bind_material,bindingStrength=bindingStrength)
+    print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
 
 
 def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],material:UsdShade.Material,bindingStrength:str=UsdShade.Tokens.strongerThanDescendants,subdivision_scheme:Literal['catmullClark','loop','bilinear','none']='catmullClark'):
@@ -214,6 +206,22 @@ def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],materia
         model_mesh.CreateSubdivisionSchemeAttr(subdivision_scheme) # loop catmullClark
     
 
+def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShade.Material],is_maintain_material_structure:bool=True):
+    for target_asset in target_assets:
+
+        for prim in Usd.PrimRange(target_asset):
+            try:
+                if prim.IsA(UsdGeom.Gprim):
+                    if is_maintain_material_structure:
+                        bind_material_to_prim_randomly(prim,materials)
+
+                    random_gprim_color(target_asset)
+
+
+                elif prim.IsA(UsdGeom.Subset):
+                    bind_material_to_prim_randomly(prim,materials)
+            except:
+                continue
 
 
 
@@ -273,6 +281,18 @@ def create_pbr_with_texture(material_prim_path:str,
     
     
     return omni_pbr.material
+
+
+def random_gprim_color(prim:UsdGeom.Gprim):
+    # print(prim)
+    if prim.IsA(UsdGeom.Gprim):
+        # 随机颜色（也可从你的调色板里抽样）
+        color = Vt.Vec3fArray((random.random(), random.random(), random.random()))
+        pv_api = UsdGeom.PrimvarsAPI(prim)
+        pv = pv_api.CreatePrimvar("displayColor",
+                                Sdf.ValueTypeNames.Color3f,
+                                UsdGeom.Tokens.constant)
+        pv.Set(color)
 
 
 

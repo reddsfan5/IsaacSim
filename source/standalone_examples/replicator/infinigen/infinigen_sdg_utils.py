@@ -29,7 +29,7 @@ import omni.usd
 from isaacsim.core.utils.semantics import add_labels, remove_labels
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.storage.native import get_assets_root_path
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade,Vt
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade
 from typing import Union
 
 import math
@@ -401,9 +401,21 @@ def load_env(usd_path: str, prim_path: str,simulation_app, remove_existing: bool
 
     for _ in range(3):
         simulation_app.update()
-    # prim_path = omni.usd.get_stage_next_free_path(stage,prim_path,False)    
     root_prim = add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
     return root_prim
+
+def remove_prim(prim_path: str,simulation_app):
+    stage = omni.usd.get_context().get_stage()
+
+    # Remove existing prim if specified
+    if stage.GetPrimAtPath(prim_path):
+        omni.kit.commands.execute("DeletePrimsCommand", paths=[prim_path])
+    for _ in range(3):
+        simulation_app.update()
+
+
+
+
 
 
 def add_colliders_to_env(root_path: str | None = None, approximation_type: str = "none") -> None:
@@ -907,26 +919,3 @@ def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdSha
             m = UsdShade.Material(p) # only been wraped can be binding to mesh.
             mats.append(m)
     return mats
-
-
-def bind_random_material_to_prim(prim, mats):
-    bind_material = random.choice(mats)
-    UsdShade.MaterialBindingAPI(prim).Bind(bind_material)
-    print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
-
-
-def random_gprim_color(prim:UsdGeom.Gprim):
-    # print(prim)
-    if prim.IsA(UsdGeom.Gprim):
-        # 随机颜色（也可从你的调色板里抽样）
-        color = Vt.Vec3fArray((random.random(), random.random(), random.random()))
-        pv_api = UsdGeom.PrimvarsAPI(prim)
-        pv = pv_api.CreatePrimvar("displayColor",
-                                Sdf.ValueTypeNames.Color3f,
-                                UsdGeom.Tokens.constant)
-        pv.Set(color)
-
-# def bind_matirial_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Material]):
-#     if prim.IsA(UsdGeom.Subset):
-        
-#         bind_random_material_to_prim(prim, materials)
