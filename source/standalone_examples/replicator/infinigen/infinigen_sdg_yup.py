@@ -20,9 +20,12 @@
 import argparse
 import json
 import os
+from pathlib import Path
+import string
 import sys
 import yaml
 from isaacsim import SimulationApp
+import traceback
 
 
 # Default config dict, can be updated/replaced using json/yaml config files ('--config' cli argument)
@@ -83,18 +86,6 @@ config = {
             "regex_replace_pattern": r"^\d+_",
             "regex_replace_repl": "",
         },
-        #     "auto_label": {
-        #     # Number of labeled assets to create from the given files/folders list
-        #     "num": 3,
-        #     # Chance to disable gravity for the labeled assets (0.0 - all the assets will fall, 1.0 - all the assets will float)
-        #     "gravity_disabled_chance": 0,
-        #     # List of folders and files to search for the labeled assets
-        #     "folders": [], #["file:///home/ubuntu/lxd/usd_file/glb/converted/"],
-        #     "files": [],
-        #     # Regex pattern to replace in the asset name (e.g. "002_banana" -> "banana")
-        #     "regex_replace_pattern": r"^\d+_",
-        #     "regex_replace_repl": "",
-        # },
         # Manually labeled assets with specific labels and properties
         "manual_label": [
             {
@@ -196,9 +187,6 @@ simulation_app = SimulationApp(launch_config={
 
 
 
-# simulation_app = SimulationApp(launch_config={"headless": config.get("headless", False)})
-
-
 import random
 from itertools import cycle
 
@@ -213,30 +201,17 @@ import omni.replicator.core as rep
 import omni.timeline
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import UsdGeom,Gf,Usd
+from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
+from lv_tools.material_change import bind_material_to_prim_randomly, bind_materials_to_prims_recursively, create_pbr_with_texture
 
 def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool, wait_after: bool):
     rep.orchestrator.step(rt_subframes=max(1, rt_subframes), delta_time=delta_time, pause_timeline=pause_timeline)
     if wait_after:
         rep.orchestrator.wait_until_complete()
-
-def enable_rp_and_warmup(render_products, warmup_updates: int, warmup_dummy_steps: int, rt_subframes: int, delta_time: float):
-    # 启用 RP 纹理更新
-    for rp in render_products:
-        try:
-            rp.hydra_texture.set_updates_enabled(True)
-        except Exception:
-            pass
-    # 预热：让 USD 变更/材质加载/光照稳定
-    for _ in range(max(0, warmup_updates)):
-        simulation_app.update()
-    # 可选：做 1 次 dummy step，丢弃输出但稳定 PT/累积
-    # for _ in range(max(0, warmup_dummy_steps)):
-    #     rep.orchestrator.step(rt_subframes=max(1, rt_subframes), delta_time=delta_time)
 
 
 # Run the SDG pipeline on the scenarios
@@ -250,13 +225,16 @@ def run_sdg(config):
     )
     capture_config = config.get("capture", {})
     writers_config = config.get("writers", {})
+    
     labeled_assets_config = config.get("labeled_assets", {})
     distractors_config = config.get("distractors", {})
+    
+    materials_control_config = config.get("materials_control",{})
 
     # ⭐创建stage，并设置向上轴⭐
     # Create a new stage
     print(f"[SDG-Infinigen] Creating a new stage")
-    omni.usd.get_context().new_stage()
+
     stage = omni.usd.get_context().get_stage()
     # Set stage Up axis
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
@@ -285,10 +263,6 @@ def run_sdg(config):
     for i in range(num_cameras):
         cam_prim = stage.DefinePrim(f"/Cameras/cam_{i}", "Camera")
         cam_prim.GetAttribute("clippingRange").Set((0.25, 1000))
-        # cam_prim.GetAttribute("verticalAperture").Set(24.0)
-        # cam_prim.GetAttribute("horizontalAperture").Set(36.0)
-        # cam_prim.GetAttribute("focalLength").Set(34.0)
-
         cameras.append(cam_prim)
     print(f"[SDG-Infinigen] Created {len(cameras)} cameras")
 
@@ -398,12 +372,62 @@ def run_sdg(config):
     wait_after_each_capture = bool(capture_config.get("wait_after_each_capture", True))
     
 
-    # scene_6_location_for_airship = [(-1.8,-0.137,2.7),]
-    # scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9),(-12.3,-0.8836,7.4),(-11.8,-0.8836,7.5),(-11.1,-0.65,8.1)]
-    # scene_7_location_for_airship = [(-4.3,-0.102,1.3),(-6.8,-0.102,2.2),(-11.1,-0.102,4.3),(-13.5,-0.102,2.9)]
-    # scene_select = scene_7_location_for_airship
+    # usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
+    # prim_path = "/general_looks"
+
+    # # 将USD文件作为引用添加到当前舞台
+    # add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
+
+    texture_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
+    metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
+    reflection_roughness = random.uniform(*materials_control_config['pbr']['reflection_roughness'])
+    scale = random.uniform(*materials_control_config['pbr']['texture_scale'])
     
-    # ⭐循环场景，开始捕获数据⭐
+    translate = random.randint(*materials_control_config['pbr']['translate'])
+    project_uvw = materials_control_config['pbr']['project_uvw']
+    omni_pbr_materials = []
+    for _ in range(30):
+        pbr_base_name = 'omni_pbr'
+        pbr_material_prim_path = omni.usd.get_stage_next_free_path(stage,os.path.join(materials_control_config['pbr']['materials_root'],pbr_base_name),False)
+        omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
+                                                    str(random.choice(texture_paths)),
+                                                    metallic_constant,
+                                                    reflection_roughness,
+                                                    scale,
+                                                    translate,
+                                                    project_uvw)
+        omni_pbr_materials.append(omni_pbr_material)
+
+    materials = []
+    # materials = infinigen_utils.find_materials(stage, "/general_looks/Looks")
+    
+    materials.extend(omni_pbr_materials)
+
+
+    for target_asset in target_assets:
+        
+        is_maintain_material_structure = False
+        for prim in Usd.PrimRange(target_asset):
+            try:
+                if prim.IsA(UsdGeom.Gprim):
+                    if is_maintain_material_structure:
+                        bind_material_to_prim_randomly(prim,materials)
+
+                    infinigen_utils.random_gprim_color(target_asset)
+
+
+                elif prim.IsA(UsdGeom.Subset):
+                    bind_material_to_prim_randomly(prim,materials)
+            except:
+                continue
+
+
+    bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
+
+    
+    
+    
+    # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
     # Start the SDG loop
     env_cycle = cycle(env_urls)
     capture_counter = 0
@@ -411,29 +435,85 @@ def run_sdg(config):
         # Load the next environment
         env_url = next(env_cycle)
 
+        # 指定USD文件路径和期望在舞台中的根路径（Prim Path)
+
         # ⭐材质颜色的随机化⭐
-        # # # todo material and color randomizer
+        # # # # todo material and color randomizer
+        # for target_asset in target_assets:
+        #     asset_prim_path = str(target_asset.GetPath())
+        #     try:
+        #         rep_items = rep.get.shader(asset_prim_path)
+        #         color_dis = rep.distribution.uniform((0.2,0.2,0.2),(1,1,1))
+
+        #         mat_low_value = random.uniform(0.7,0.89)
+        #         rough_low_value = random.uniform(0.2,0.9)
+
+        #         metallic_dis = rep.distribution.uniform((mat_low_value,),(mat_low_value+0.1,))
+        #         roughness_dis = rep.distribution.uniform((rough_low_value,),(rough_low_value+0.1,))
+
+
+        #         with rep_items:
+        #             rep.modify.attribute('inputs:base_color_factor',color_dis)
+        #             rep.modify.attribute('inputs:metallic_factor',metallic_dis)
+        #             rep.modify.attribute('inputs:roughness_factor',roughness_dis)
+
+        #     except:
+        #         pass
+
+
         for target_asset in target_assets:
-            asset_prim_path = str(target_asset.GetPath())
-            try:
-                rep_items = rep.get.shader(asset_prim_path)
-                color_dis = rep.distribution.uniform((0.2,0.2,0.2),(1,1,1))
+            
+            is_maintain_material_structure = True
+            for prim in Usd.PrimRange(target_asset):
+                try:
+                    if prim.IsA(UsdGeom.Gprim):
+                        if is_maintain_material_structure:
+                            bind_material_to_prim_randomly(prim,materials)
 
-                mat_low_value = random.uniform(0.7,0.89)
-                rough_low_value = random.uniform(0.2,0.9)
+                        infinigen_utils.random_gprim_color(target_asset)
 
-                metallic_dis = rep.distribution.uniform((mat_low_value,),(mat_low_value+0.1,))
-                roughness_dis = rep.distribution.uniform((rough_low_value,),(rough_low_value+0.1,))
-                with rep_items:
-                    rep.modify.attribute('inputs:base_color_factor',color_dis)
-                    rep.modify.attribute('inputs:metallic_factor',metallic_dis)
-                    rep.modify.attribute('inputs:roughness_factor',roughness_dis) 
-            except:
-                pass
+
+                    elif prim.IsA(UsdGeom.Subset):
+                        bind_material_to_prim_randomly(prim,materials)
+                except:
+                    continue
+        
+        
+
+
+        
+        # bind_materials_to_prims_recursively(plane_prim,[omni_pbr_material],is_mesh_bind_material=True)
+        # bind_materials_to_prims_recursively(distractors,[omni_pbr_material],is_mesh_bind_material=True)
+
+
+
+
+        
+        # for target_asset in target_assets:
+            
+        #     is_maintain_material_structure = False
+        #     for prim in Usd.PrimRange(target_asset):
+        #         try:
+        #             if prim.IsA(UsdGeom.Gprim):
+        #                 if is_maintain_material_structure:
+        #                     bind_material_to_prim_randomly(prim,materials)
+
+        #                 infinigen_utils.random_gprim_color(target_asset)
+
+
+        #             elif prim.IsA(UsdGeom.Subset):
+        #                 bind_material_to_prim_randomly(prim,materials)
+        #         except:
+        #             continue
+        
+        # # 试图解决材质变化导致的坐标集于一点的问题
+        # for _ in range(10):
+        #     simulation_app.update()
+        
 
         # Load the new environment
         print(f"[SDG-Infinigen] Loading environment: {env_url}")
-        infinigen_utils.load_env(env_url, prim_path="/Environment")
+        infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
 
         # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
         print(f"[SDG-Infinigen] Setting up the environment")
@@ -442,96 +522,61 @@ def run_sdg(config):
 
 
 
-    
-
-        # 指定USD文件路径和期望在舞台中的根路径（Prim Path）
-        usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
-        prim_path = "/World/general_looks"
-
-        # 将USD文件作为引用添加到当前舞台
-        add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
-
         stage = omni.usd.get_context().get_stage()
 
         # Get the plane prim 
 
-        # match_string = random.choice(["TableDining"])
         match_string = random.choice(["TableDining"])
+        # match_string = random.choice(["TableDining",'floor'])
         root_path= '/Environment'
 
         plane_prims = infinigen_utils.find_matching_prims(
             match_strings=[match_string], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
-            '/World/dining_room_4/TableDiningFactory_3810673__spawn_asset_8768607__001',
-            '/World/dining_room_5/TableDiningFactory_6160158__spawn_asset_9053640__001'
-            '/World/dining_room_6/TableDiningFactory_5756319__spawn_asset_664843__001',
-            '/World/dining_room_8/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS']
+            '/Environment/TableDiningFactory_3810673__spawn_asset_8768607__001',    # dining_room_4
+            '/Environment/TableDiningFactory_6160158__spawn_asset_9053640__001',     # dining_room_5
+            '/Environment/TableDiningFactory_5756319__spawn_asset_664843__001',     # dining_room_6
+            '/Environment/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS',   # dining_room_8
+            ] 
         )
 
-        # print(plane_prims)
-        # plane_prim = plane_prims[1]
 
+
+
+        # random asset plain
 
         for plane_prim in plane_prims:
 
             # modify the material of the plane
-            materials = infinigen_utils.find_materials(stage, "/World/general_looks/Looks")
-            is_maintain_material_structure = False
+            is_maintain_material_structure = True
             for prim in Usd.PrimRange(plane_prim):
                 # print(f'----------------{prim}------------------')
                 if prim.IsA(UsdGeom.Gprim):
-                    if not is_maintain_material_structure:
+                    if is_maintain_material_structure:
                         infinigen_utils.bind_random_material_to_prim(prim,materials)
 
                     infinigen_utils.random_gprim_color(prim)
 
 
                 elif prim.IsA(UsdGeom.Subset):
-                    infinigen_utils.bind_matirial_to_subset(prim,materials)
+                    infinigen_utils.bind_random_material_to_prim(prim,materials)
 
         plane_prim = random.choice(plane_prims)
+        
+        distractors = stage.GetPrimAtPath('/Distractors')
 
 
 
         # translate the env location to make the plane under target prim
         infinigen_utils.translate_env_under_target_asset(plane_prim,manual_falling_assets[0])
 
-        
 
 
-        # stage = omni.usd.get_context().get_stage()
-        # prim = stage.GetPrimAtPath('/Environment')
-        # infinigen_utils.set_transform_attributes(prim,location=Gf.Vec3f(*random.choice(scene_select)))
-
-
-
-
-        # working_area_loc_abs = infinigen_utils.convert_rotated_location_to_abs(working_area_loc)
-
-        # print(f"桌子位置:{working_area_loc_abs}")
-
-        # ⭐视窗相机位置和角度设置⭐
-        # Move viewport above the working area to get a top-down view of the scene
-        # if debug_mode:
-        #     camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
-        #     print(f"相机位置:{camera_loc}")
-        #     set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
 
         # ⭐⭐我们的主体asset的位置⭐⭐
         # Get the spawn areas as offseted location ranges from the working area (min_x, min_y, min_z, max_x, max_y, max_z)
         print(f"\tRandomizing {len(target_assets)} target assets around the working area")
-        # target_loc_range = infinigen_utils.offset_range((-0.1, 0.8, -0.2, 0.1, 1.5, 0.2), working_area_loc_abs)
-        
-        # infinigen_utils.randomize_poses(
-        #     target_assets,
-        #     location_range=target_loc_range,
-        #     rotation_range=(10, 25),
-        #     scale_range=(1, 1),
-        # )
-        
-        
-        # target_loc_range = infinigen_utils.offset_range((0, 0, 0, 0, 0, 0), working_area_loc_abs)
 
-        
+        # ⭐视窗相机位置和角度设置⭐
         working_area_loc_abs = (0,0,0)
         if debug_mode:
             camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
@@ -548,24 +593,35 @@ def run_sdg(config):
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
 
-        
-        mesh_loc_range = infinigen_utils.offset_range((-0.5, 0, 0.15, 0.5, 0.1, 0.2), working_area_loc_abs)
+        mesh_loc_x0,mesh_loc_x1 = distractors_config['mesh_distractors']['location_range']['x']
+        mesh_loc_y0,mesh_loc_y1 = distractors_config['mesh_distractors']['location_range']['y']
+        mesh_loc_z0,mesh_loc_z1 = distractors_config['mesh_distractors']['location_range']['z']
+        mesh_dis_scale_range = distractors_config['mesh_distractors']['scale_range']
+        mesh_loc_range = infinigen_utils.offset_range((mesh_loc_x0,mesh_loc_y0,mesh_loc_z0,mesh_loc_x1,mesh_loc_y1,mesh_loc_z1), working_area_loc_abs)
         infinigen_utils.randomize_poses(
             mesh_distractors,
             location_range=mesh_loc_range,
             rotation_range=(0, 25),
-            scale_range=(0.1, 0.3),
+            scale_range=mesh_dis_scale_range,
         )
 
         # Shape distractors
         print(f"\tRandomizing {len(shape_distractors)} shape distractors around the working area")
-        shape_loc_range = infinigen_utils.offset_range((-0.5, 0, -0.15, 0.5, 0.1, -0.2), working_area_loc_abs)
+
+        shape_loc_x0,shape_loc_x1 = distractors_config['shape_distractors']['location_range']['x']
+        shape_loc_y0,shape_loc_y1 = distractors_config['shape_distractors']['location_range']['y']
+        shape_loc_z0,shape_loc_z1 = distractors_config['shape_distractors']['location_range']['z']
+        shape_dis_scale_range = distractors_config['shape_distractors']['scale_range']
+
+        shape_loc_range = infinigen_utils.offset_range((shape_loc_x0,shape_loc_y0,shape_loc_z0,shape_loc_x1,shape_loc_y1,shape_loc_z1), working_area_loc_abs)
         infinigen_utils.randomize_poses(
             shape_distractors,
             location_range=shape_loc_range,
             rotation_range=(0, 25),
-            scale_range=(0.05, 0.08),
+            scale_range=shape_dis_scale_range,
         )
+        
+        
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
         lights_loc_range = infinigen_utils.offset_range((-0.5, -0.1, .5, 0.5, 0.8, 1.5), working_area_loc_abs)
@@ -610,10 +666,12 @@ def run_sdg(config):
             # Check if the total captures have been reached
             if capture_counter >= total_captures:
                 break
+           
+            
             # Randomize the camera poses
             print(f"\tRandomizing {len(cameras)} camera poses")
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=(65, 90)
+                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range']
             )
             
             simulation_app.update()
@@ -655,9 +713,13 @@ def run_sdg(config):
             # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
             print(f"\tRandomizing camera poses")
 
+            if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
+                bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
+                bind_materials_to_prims_recursively(distractors,omni_pbr_materials,is_mesh_bind_material=True)
 
+                
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=(0, 90)
+                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range']
             )
             print(
                 f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
@@ -679,6 +741,10 @@ def run_sdg(config):
         # Check if the render mode needs to be switched back to raytracing until the next capture
         if use_path_tracing:
             carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
+
+
+        #todo Wait until the data is written to the disk
+        # rep.orchestrator.wait_until_complete()
 
     #todo 跑一段物理（掉落阶段）
     print(f"\tRunning the simulation (drop phase)")

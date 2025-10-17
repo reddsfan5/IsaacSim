@@ -10,8 +10,128 @@ import fnmatch
 from isaacsim.core.api.materials import OmniPBR
 import numpy as np
 import string
+import carb
 
-GLOBAL_SEED  = 4122                    # 全局随机种子（可复现）
+GLOBAL_SEED  = 4122     
+
+class OmniPBRPlus(OmniPBR):
+    '''
+    with more texture info.
+    
+    '''
+    def set_reflectionroughness_texture(self, reflectionroughness_texture_path: str,roughness_map_influence:float=0.9) -> None:
+        """[summary]
+
+        Args:
+            amount (float): [description]
+        """
+
+        if self.shaders_list[0].GetInput("reflectionroughness_texture").Get() is None:
+            self.shaders_list[0].CreateInput("reflectionroughness_texture", Sdf.ValueTypeNames.Asset).Set(reflectionroughness_texture_path)
+        else:
+            self.shaders_list[0].GetInput("reflectionroughness_texture").Set(reflectionroughness_texture_path)
+
+        if self.shaders_list[0].GetInput("reflection_roughness_texture_influence").Get() is None:
+            self.shaders_list[0].CreateInput("reflection_roughness_texture_influence", Sdf.ValueTypeNames.Float).Set(roughness_map_influence)
+        else:
+            self.shaders_list[0].GetInput("reflection_roughness_texture_influence").Set(roughness_map_influence)
+        
+        return
+
+
+
+
+    def get_reflectionroughness_texture(self) -> str:
+        """[summary]
+
+        Returns:
+            str: [description]
+        """
+        if self.shaders_list[0].GetInput("reflectionroughness_texture").Get() is None:
+            carb.log_warn("A reflectionroughness_texture attribute is not set yet")
+            return None
+        else:
+            return self.shaders_list[0].GetInput("reflectionroughness_texture").Get()
+
+    
+    
+    def set_normalmap_texture(self, normalmap_texture_path: str,bump_factor:float=0.9) -> None:
+        """[summary]
+
+        Args:
+            amount (float): [description]
+        """
+
+        if self.shaders_list[0].GetInput("normalmap_texture").Get() is None:
+            self.shaders_list[0].CreateInput("normalmap_texture", Sdf.ValueTypeNames.Asset).Set(normalmap_texture_path)
+        else:
+            self.shaders_list[0].GetInput("normalmap_texture").Set(normalmap_texture_path)
+
+        if self.shaders_list[0].GetInput("bump_factor").Get() is None:
+            self.shaders_list[0].CreateInput("bump_factor", Sdf.ValueTypeNames.Float).Set(bump_factor)
+        else:
+            self.shaders_list[0].GetInput("bump_factor").Set(bump_factor)
+        
+        return
+
+
+
+
+    def get_normalmap_texture(self) -> str:
+        """[summary]
+
+        Returns:
+            str: [description]
+        """
+        if self.shaders_list[0].GetInput("normalmap_texture").Get() is None:
+            carb.log_warn("A normalmap_texture attribute is not set yet")
+            return None
+        else:
+            return self.shaders_list[0].GetInput("normalmap_texture").Get()
+    
+    
+    
+    
+    
+    def set_metallic_texture(self, metallic_texture_path: str,metallic_texture_influence:float=0.9) -> None:
+        """[summary]
+
+        Args:
+            amount (float): [description]
+            /Look_PBR/gDmJhnqY/shader.inputs:metallic_texture
+            /Look_PBR/gDmJhnqY/shader.inputs:metallic_texture_influence
+        """
+
+        if self.shaders_list[0].GetInput("metallic_texture").Get() is None:
+            self.shaders_list[0].CreateInput("metallic_texture", Sdf.ValueTypeNames.Asset).Set(metallic_texture_path)
+        else:
+            self.shaders_list[0].GetInput("metallic_texture").Set(metallic_texture_path)
+
+        if self.shaders_list[0].GetInput("metallic_texture_influence").Get() is None:
+            self.shaders_list[0].CreateInput("metallic_texture_influence", Sdf.ValueTypeNames.Float).Set(metallic_texture_influence)
+        else:
+            self.shaders_list[0].GetInput("metallic_texture_influence").Set(metallic_texture_influence)
+        
+        return
+
+
+
+
+    def get_metallic_texture(self) -> str:
+        """[summary]
+
+        Returns:
+            str: [description]
+        """
+        if self.shaders_list[0].GetInput("metallic_texture").Get() is None:
+            carb.log_warn("A metallic_texture attribute is not set yet")
+            return None
+        else:
+            return self.shaders_list[0].GetInput("metallic_texture").Get()
+
+
+
+               # 全局随机种子（可复现）
 def _stable_seed(s: str) -> int:
     return int(hashlib.md5(s.encode("utf-8")).hexdigest()[:8], 16)
 
@@ -81,9 +201,9 @@ def bind_material_to_prim_with_seed_randomly(prim:UsdGeom.Gprim, mats:list[UsdSh
     m = rng.choices(choices, weights=weights, k=1)[0] if weights else rng.choice(choices)
     bind_material_to_prim(prim,m)
 
-def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Material]):
+def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Material],bindingStrength:str=UsdShade.Tokens.strongerThanDescendants):
     m = random.choice(mats)
-    bind_material_to_prim(prim,m)
+    bind_material_to_prim(prim,m,bindingStrength=bindingStrength)
 
 
 def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],material:UsdShade.Material,bindingStrength:str=UsdShade.Tokens.strongerThanDescendants,subdivision_scheme:Literal['catmullClark','loop','bilinear','none']='catmullClark'):
@@ -106,6 +226,7 @@ def bind_material_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Mater
 def bind_materials_to_prims_recursively(root_prim:Union[Usd.Prim,Sdf.Path],materials: list[UsdShade.Material],is_mesh_bind_material:bool=False):
     for prim in Usd.PrimRange(root_prim):
         if prim.IsA(UsdGeom.Gprim):
+            print(f'binding:{prim.GetPath()}')
             if is_mesh_bind_material:
                 bind_material_to_prim(prim,random.choice(materials))
             random_gprim_color(prim)
@@ -114,10 +235,21 @@ def bind_materials_to_prims_recursively(root_prim:Union[Usd.Prim,Sdf.Path],mater
             bind_material_to_subset(prim,materials)
     
 
-def create_pbr_with_texture(material_prim_path:str,texture_path:str,metallic_constant:float,reflection_roughness:float,scale:int,translate:int,project_uvw:bool=True,color:np.ndarray=np.array([1,0,0])):
+def create_pbr_with_texture(material_prim_path:str,
+                            texture_path:str,
+                            metallic_constant:float,
+                            reflection_roughness:float,
+                            scale:float,
+                            translate:int,
+                            project_uvw:bool=True,
+                            color:np.ndarray=np.array([1,0,0]),
+                            normalmap_texture_path:str=None,
+                            metallic_texture_path:str=None,
+                            reflectionroughness_texture_path:str=None
+                            ):
     
     
-    omni_pbr = OmniPBR(prim_path=material_prim_path,
+    omni_pbr = OmniPBRPlus(prim_path=material_prim_path,
             texture_path=texture_path,
             texture_scale=np.array([scale,scale]),
             texture_translate=np.array([translate,translate]),
@@ -129,9 +261,17 @@ def create_pbr_with_texture(material_prim_path:str,texture_path:str,metallic_con
     safe_reflection_roughness = max(.1,reflection_roughness)
     omni_pbr.set_metallic_constant(amount=safe_metallic_constant)
     omni_pbr.set_reflection_roughness(amount=safe_reflection_roughness)
+    if normalmap_texture_path:
+        omni_pbr.set_normalmap_texture(normalmap_texture_path=normalmap_texture_path)
+    if metallic_texture_path:
+        omni_pbr.set_metallic_texture(metallic_texture_path=metallic_texture_path)
+    if reflectionroughness_texture_path:
+        omni_pbr.set_reflectionroughness_texture(reflectionroughness_texture_path=reflectionroughness_texture_path)
 
     # 确保材质生效
     omni_pbr.set_project_uvw(flag=project_uvw)
+    
+    
     return omni_pbr.material
 
 
@@ -141,51 +281,3 @@ def create_pbr_with_texture(material_prim_path:str,texture_path:str,metallic_con
 
 
 
-# if __name__ == '__main__':
-
-
-
-prim_path = '/World/JJ_2_no_base/mesh'
-# # print(prims_utils.get_prim_attribute_names(prim_path=prim_path))
-# stage = omni.usd.get_context().get_stage()
-# # print(stage)
-# random_material(prim_path)
-stage = omni.usd.get_context().get_stage()
-
-from omni.isaac.core.utils.stage import add_reference_to_stage
-
-# 指定USD文件路径和期望在舞台中的根路径（Prim Path）
-usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
-prim_path = "/World/general_looks"
-# 将USD文件作为引用添加到当前舞台
-# add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
-# material = stage.GetPrimAtPath(prim_path)
-# value = prims_utils.get_prim_attribute_names(prim_path=prim_path)
-
-# '''
-# material change
-
-# '''
-
-color = np.random.uniform(0,1,3)
-metallic_constant = random.uniform(.1,.99)
-reflection_roughness = random.uniform(.01,1)
-scale = random.choice([random.uniform(.01,1),random.randint(1,10)])
-translate = random.randint(2,20)
-texture_path = '/home/ubuntu/lxd/usd_file/imgs/71q9Ii6lj3L._AC_.jpg'
-project_uvw=True
-
-rand_str = ''.join(random.choices(string.ascii_letters,k=8))
-material_prim_path = f'/Look_PBR/{rand_str}'
-prim_path_model = '/World'
-prim_path = prim_path_model
-omni_pbr_material = create_pbr_with_texture(material_prim_path,texture_path,metallic_constant,reflection_roughness,scale,translate,project_uvw)
-# materials = [omni_pbr_material]
-materials = find_materials(stage, "/general_looks/Looks")
-materials.extend([omni_pbr_material]*20)
-
-
-
-
-prim_model = stage.GetPrimAtPath(prim_path_model)
-bind_materials_to_prims_recursively(prim_model,materials,is_mesh_bind_material=True)
