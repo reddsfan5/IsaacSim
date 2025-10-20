@@ -26,10 +26,11 @@ import omni.physx
 import omni.replicator.core as rep
 import omni.timeline
 import omni.usd
-from isaacsim.core.utils.semantics import add_labels, remove_labels
+from isaacsim.core.utils.semantics import add_labels,remove_all_semantics  # remove_labels
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.storage.native import get_assets_root_path
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade
+
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade,UsdSemantics
 from typing import Union
 
 import math
@@ -920,3 +921,20 @@ def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdSha
             m = UsdShade.Material(p) # only been wraped can be binding to mesh.
             mats.append(m)
     return mats
+
+
+def remove_labels(prim: Usd.Prim, include_descendants: bool = False) -> None:
+    """Removes semantic labels (UsdSemantics.LabelsAPI) from a prim.
+
+    Args:
+        prim (Usd.Prim): Prim to remove labels from.
+        instance_name (str | None, optional): Specific instance name to remove.
+                                              If None (default), removes *all* LabelsAPI instances.
+        include_descendants (bool, optional): Also traverse children and remove labels recursively. Defaults to False.
+    """
+
+    if include_descendants:
+        for p in Usd.PrimRange(prim):
+            remove_all_semantics(p)
+    else:
+        remove_all_semantics(prim)
