@@ -17,20 +17,20 @@ environments:
   # List of background environments (list of folders or files)
   folders:
     # - /Isaac/Samples/Replicator/Infinigen/dining_rooms
-    # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms
-    - file:///home/ubuntu/lxd/lxd_code/infinigen/outputs/omniverse
+    - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms
+    # - file:///home/ubuntu/lxd/lxd_code/infinigen/outputs/omniverse
   
   files: []
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 300
+  total_captures: 1000
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 10
+  num_dropped_captures_per_env: 50
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 3
+  num_cameras: 5
   # Resolution of the captured frames
   resolution: [640, 480]
   # Disable render products throughout the pipeline, enable them only when capturing the frames
@@ -42,28 +42,59 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [.5, 2.5]
+  camera_distance_to_target_range: [.7, 2.8]
   # Number of scene lights to create in the working area
-  num_scene_lights: 8
+  num_scene_lights: 20
   polar_angle_range: [0,90]
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
-  - type: BasicWriter
+  # - type: BasicWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1023_junjian_larger_polar_test
+  #     rgb: false
+  #     semantic_segmentation: true
+  #     colorize_semantic_segmentation: true
+  #     bounding_box_2d_tight: true
+
+  # - type: BasicDataCollector
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1023_junjian_larger_polar
+  #     rgb: false
+  #     semantic_segmentation: true
+  #     colorize_semantic_segmentation: true
+  #     bounding_box_2d_tight: true
+
+  # - type: PoseWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1023_junjian_larger_polar_test0
+  #     format: null # dope ; centerpose
+  #     use_subfolders: true
+  #     write_debug_images: false
+  #     skip_empty_frames: true
+
+  # - type: PoseDataCollector
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1020_test
+  #     format: null # dope ; centerpose
+  #     use_subfolders: true
+  #     write_debug_images: false
+  #     skip_empty_frames: true
+
+
+
+  - type: LMDBWriter
     kwargs:
-      output_dir: "/data2/data/_out_infinigen_basicwriter_lv_1016_jj_v1"
-      rgb: false
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1024_test2
+      format: null # dope ; centerpose
+      use_subfolders: false
+      write_debug_images: false
+      skip_empty_frames: true
+      show_bin: 10
+
       semantic_segmentation: true
       colorize_semantic_segmentation: true
       bounding_box_2d_tight: true
-
-  - type: PoseWriter
-    kwargs:
-      output_dir: "/data2/data/_out_infinigen_posewriter_lv_1016_jj_v1"
-      format: null # dope ; centerpose
-      use_subfolders: true
-      write_debug_images: true
-      skip_empty_frames: true
 
   # - type: DataVisualizationWriter
   #   kwargs:
@@ -98,14 +129,7 @@ labeled_assets:
     #   label: pudding_box
     #   num: 2
     #   gravity_disabled_chance: 0.25
-    # - url: file:///home/ubuntu/lxd/usd_file/infinigen_assets/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd
-    #   label: mustard_bottle
-    #   num: 2
-    #   gravity_disabled_chance: 0.25
-    # - url: file:///home/ubuntu/lxd/usd_file/infinigen_assets/Props/YCB/Axis_Aligned/airship.usd
-    #   label: airship
-    #   num: 1
-    #   gravity_disabled_chance: 0.25
+
 
     - url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
       label: airship
@@ -117,22 +141,37 @@ labeled_assets:
       num: 1
       gravity_disabled_chance: 0
 
+    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
+      label: jj
+      num: 0
+      gravity_disabled_chance: 0
+
     - url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk2.usd
       label: disk
       num: 0
       gravity_disabled_chance: 0
 
+    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tanke/TanKe_3.usd
+      label: tanke
+      num: 0
+      gravity_disabled_chance: 0
+
+    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
+      label: tuopan
+      num: 0
+      gravity_disabled_chance: 0
+    
 
 distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 8
+    num: 5
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
-      z: [-0.1,-1]
-    scale_range: [0.02,0.05]
+      z: [-0.1,-0.8]
+    scale_range: [0.02,0.055]
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
     # List of shape types to randomly choose from
@@ -141,21 +180,21 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 8
+    num: 5
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
-      z: [0.1,0.5]
+      z: [0.08,0.5]
     scale_range: [0.15,0.25]
 
     gravity_disabled_chance: 0.25
     # List of folders and files to search to randomly choose from
     folders:
       - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/
-      - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Cones/
+      # - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Cones/
     files:
-      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
+      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_TrafficCone.usd
       - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_WetFloorSign.usd
@@ -176,18 +215,19 @@ materials_control:
   
   pbr:
     materials_root: /pbr_materials
-    pbr_prob: 0.2
+    # pbr_prob: 0.5
     color: [0,1]
+    num: 10
     metallic_constant: [0.1,0.99]
     reflection_roughness: [0.01,1]
-    texture_scale: [.8,2]
-    translate: [1,50]
+    texture_scale: [.1,2]
+    translate: [1,500]
     texture_root: /home/ubuntu/lxd/usd_file/imgs
-    project_uvw: true
+    # project_uvw: false
 
 
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: true
-headless: false
+debug_mode: false
+headless: true

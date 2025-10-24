@@ -1,11 +1,21 @@
 import math
+import os
 import shutil
+import traceback
 from functools import partial
 from pathlib import Path
 from typing import Union
-import json
+
+import PIL
+import cv2
 import numpy as np
+from PIL import ImageDraw
 from tqdm import tqdm
+import sys
+
+sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
+from lv_tools.cores.img_io import cv2imwrite,cv2imread
+from lv_tools.cores.json_io import load_json_to_dict, save_json
 
 RGB_ANNOT_NAME = "rgb"
 BB3D_ANNOT_NAME = "bounding_box_3d_fast"
@@ -15,21 +25,7 @@ CUBOID_KEYPOINTS_ORDER_DEFAULT = ["Center", "LDB", "LDF", "LUB", "LUF", "RDB", "
 CUBOID_KEYPOINT_ORDER_DOPE = ["LUF", "RUF", "RDF", "LDF", "LUB", "RUB", "RDB", "LDB", "Center"]
 CUBOID_KEYPOINT_COLORS = ["white", "red", "green", "blue", "yellow", "cyan", "magenta", "orange", "purple"]
 CUBOID_EDGE_COLORS = {"front": "red", "back": "blue", "connecting": "green"}
-def load_json_to_dict(json_path: Union[str,Path]) -> dict:
-    '''
-    json_path: json_file 路径。
-    return:json_dict
-    '''
-    with open(json_path, encoding='utf8', mode='r') as f:
-        json_dict = json.load(f)
-    return json_dict
 
-def save_json(dst_json_path:Union[str,Path], jd:dict):
-    dst_json_path = Path(dst_json_path)
-    if not (dst_dir:=dst_json_path.parent).exists():
-        dst_dir.mkdir(parents=True,exist_ok=True)
-    with open(dst_json_path, mode='w', encoding='utf8') as f:
-        json.dump(jd, f, ensure_ascii=False)
 
 # Transform a 3D point from world coordinates to camera coordinates
 def world_point_to_camera_point(world_point: Union[list[float], np.ndarray], view_matrix: np.ndarray) -> np.ndarray:
@@ -186,6 +182,7 @@ def mid_point(p1: Union[np.ndarray, list], p2: Union[np.ndarray, list]) -> np.nd
 def point4_to_point9(points: list) -> list:
     '''
     points: dl,dr,ul,ur
+
     '''
     dl, dr, ul, ur = points
 
@@ -197,8 +194,15 @@ def point4_to_point9(points: list) -> list:
     return [p.tolist() if isinstance(p, np.ndarray) else p for p in [dl, dm, dr, ml, mm, mr, ul, um, ur]]
 
 
+
+
+
+
 def cuboid9_to_cuboid27(world_points: list) -> list:
     '''
+    outer loop: left -> right
+    middle loop: down -> up
+    inner loop: back -> front
 
     :param points: 9 center style points
     :return:
@@ -215,6 +219,31 @@ def cuboid9_to_cuboid27(world_points: list) -> list:
         cuboid_27.extend(plain9)
 
     return cuboid_27
+
+
+def cuboid27_to_alva27(cuboid_27: list) -> list:
+    '''
+    outer loop: left -> right
+    middle loop: down -> up
+    inner loop: back-> front
+
+
+    to
+
+    outer loop: back -> front
+    middle loop: left -> right
+    inner loop: down -> up
+
+
+    :param cuboid_27:
+    :return:
+    '''
+
+
+    cuboid_array = np.array(cuboid_27).reshape(3,3,3,-1)
+    cuboid_array_ret = cuboid_array.transpose(2,0,1,3).reshape(-1,3)
+    return cuboid_array_ret.tolist()
+
 
 
 def cuboid_world_to_screen(cuboid: list, view_matrix: np.ndarray, proj_matrix: np.ndarray,
@@ -237,12 +266,20 @@ def add_cuboid_27(jd: dict):
         screen_size = jd["camera_data"]["resolution"]
 
         cuboid_27_world = cuboid9_to_cuboid27(world_points)
+
+        # alva_style
+        cuboid_27_world = cuboid27_to_alva27(cuboid_27_world)
+
+
+
+
         cuboid_27_screen = cuboid_world_to_screen(cuboid_27_world, view_matrix, proj_matrix, screen_size)
         obj["cuboid_27_world"] = cuboid_27_world
         obj["cuboid_27_screen"] = cuboid_27_screen
+        # obj["cuboid_27_world_alva"] = cuboid_27_world_alva
 
 
-def is_ann_valid(jd: dict, truncation_ratio: float = .1, visibility_ratio: float = .9,
+def is_ann_valid(jd: dict, truncation_ratio: float = .4, visibility_ratio: float = .75,
                  rotate_threshold: int = 90) -> bool:
     if not jd.get('objects') or any(obj['visibility'] < visibility_ratio or obj[
         'truncation_ratio'] > truncation_ratio or compute_asset_direction(
@@ -305,12 +342,16 @@ def data_filter_and_adapt(root: Union[str, Path], dst_folder: Union[Path, str] =
         move_out_none_interesting_obj(jd,interesting_labels)
 
 
-        if not is_ann_valid(jd, truncation_ratio=.3, visibility_ratio=.8,rotate_threshold=90):
+        if not is_ann_valid(jd, truncation_ratio=.5, visibility_ratio=.65,rotate_threshold=90):
             move_out_invalid_data(json_path, dst_folder)
             continue
         add_cuboid_27(jd)
         add_vfov(jd)
         save_json(json_path, jd)
+
+
+
+
 
 
 def compute_asset_direction(rot_world: np.ndarray) -> list:
@@ -349,24 +390,11 @@ def bbox_2d_convert(bbox_2d_void:np.void)->list[list[float]]:
 
 
 if __name__ == '__main__':
-    # json_path = r'F:\dataset\LLM\assets\format_center_pose\000290.json'
-    # jd = load_json_to_dict(json_path)
-    # object = jd["objects"][0]
-    # world_points = object["cuboid_keypoints_world_frame"]
-    # view_matrix = np.array(jd["camera_data"]["camera_view_matrix"], dtype=float)
-    # proj_matrix = np.array(jd["camera_data"]["camera_projection_matrix"], dtype=float)
-    # screen_size = tuple(jd["camera_data"]["resolution"])
-    #
-    # cuboid_27 = cuboid9_to_cuboid27(world_points)
-    # print(cuboid_world_to_screen(cuboid_27, view_matrix, proj_matrix, screen_size))
 
-    root = r'/data2/data/_out_infinigen_posewriter_lv_1013_disk_v1'
-    dst_folder = r''
-    data_filter_and_adapt(root,interesting_labels=['airship','jj','disk'])
-    # for json_path in Path(root).rglob('*.json'):
-    #     jd = load_json_to_dict(json_path)
-    #
-    #     if jd.get('objects'):
-    #         for obj in jd['objects']:
-    #             direction = compute_asset_direction(np.array(obj['rotation_matrix_world_frame']))
-    #             print(json_path.name,diralüection
+    for i in range(1,2):
+        root = rf'/data2/data/_out_infinigen_posewriter_lv_1023_junjian_larger_polar'
+
+        data_filter_and_adapt(root,interesting_labels=['airship','jj','disk','tanke','tuopan'])
+
+
+

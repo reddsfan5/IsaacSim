@@ -370,6 +370,8 @@ def get_usd_paths(
     skip_folder_keywords = skip_folder_keywords or []
 
     # assets_root_path = '/home/ubuntu/lxd/usd_file/infinigen_assets'
+    
+    # need internet access
     assets_root_path = get_assets_root_path()
     env_paths = []
 
@@ -924,12 +926,10 @@ def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdSha
 
 
 def remove_labels(prim: Usd.Prim, include_descendants: bool = False) -> None:
-    """Removes semantic labels (UsdSemantics.LabelsAPI) from a prim.
+    """Removes semantic labels from a prim.
 
     Args:
         prim (Usd.Prim): Prim to remove labels from.
-        instance_name (str | None, optional): Specific instance name to remove.
-                                              If None (default), removes *all* LabelsAPI instances.
         include_descendants (bool, optional): Also traverse children and remove labels recursively. Defaults to False.
     """
 

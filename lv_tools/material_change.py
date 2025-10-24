@@ -195,7 +195,7 @@ def bind_material_to_prim_with_seed_randomly(prim:UsdGeom.Gprim, mats:list[UsdSh
 def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Material],bindingStrength:str=UsdShade.Tokens.strongerThanDescendants):
     bind_material = random.choice(mats)
     bind_material_to_prim(prim,bind_material,bindingStrength=bindingStrength)
-    print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
+    # print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
 
 
 def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],material:UsdShade.Material,bindingStrength:str=UsdShade.Tokens.strongerThanDescendants,subdivision_scheme:Literal['catmullClark','loop','bilinear','none']='catmullClark'):
@@ -206,7 +206,10 @@ def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],materia
         model_mesh.CreateSubdivisionSchemeAttr(subdivision_scheme) # loop catmullClark
     
 
-def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShade.Material],is_maintain_material_structure:bool=True):
+def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShade.Material],is_maintain_material_structure:bool=True,usd_materials_num:int=None):
+    if usd_materials_num:
+        materials = random.sample(materials,usd_materials_num)
+    
     for target_asset in target_assets:
 
         for prim in Usd.PrimRange(target_asset):
@@ -234,7 +237,7 @@ def bind_material_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Mater
 def bind_materials_to_prims_recursively(root_prim:Union[Usd.Prim,Sdf.Path],materials: list[UsdShade.Material],is_mesh_bind_material:bool=False):
     for prim in Usd.PrimRange(root_prim):
         if prim.IsA(UsdGeom.Gprim):
-            print(f'binding:{prim.GetPath()}')
+            # print(f'binding:{prim.GetPath()}')
             if is_mesh_bind_material:
                 bind_material_to_prim(prim,random.choice(materials))
             random_gprim_color(prim)

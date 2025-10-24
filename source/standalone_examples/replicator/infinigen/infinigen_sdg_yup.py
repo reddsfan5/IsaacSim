@@ -18,6 +18,7 @@
 
 
 import argparse
+import itertools
 import json
 import os
 from pathlib import Path
@@ -204,6 +205,7 @@ import omni.replicator.core as rep
 import omni.timeline
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
+from isaacsim.core.utils.semantics import get_labels
 from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 
@@ -211,8 +213,8 @@ sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
 from lv_tools.material_change import bind_material_to_prim_randomly, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 from lv_tools.material_change import random_gprim_color
-
-def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,num:int=50)->list[UsdShade.Material]:
+import lv_tools.writer_register
+def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage)->list[UsdShade.Material]:
 
     '''
     耦合当前配置文件的业务逻辑函数
@@ -225,10 +227,11 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,num:int
     scale = random.uniform(*materials_control_config['pbr']['texture_scale'])
     
     translate = random.randint(*materials_control_config['pbr']['translate'])
-    project_uvw = materials_control_config['pbr']['project_uvw']
+    # project_uvw = materials_control_config['pbr']['project_uvw']
+    project_uvw = random.choice([True, False])
     omni_pbr_materials = []
 
-    for _ in range(num):
+    for _ in range(materials_control_config['pbr']['num']):
         pbr_base_name = 'omni_pbr'
         pbr_material_prim_path = omni.usd.get_stage_next_free_path(stage,os.path.join(materials_control_config['pbr']['materials_root'],pbr_base_name),False)
         omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
@@ -354,9 +357,12 @@ def run_sdg(config):
     # Load the mesh distractors
     mesh_distractors_config = distractors_config.get("mesh_distractors", {})
     floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
+    
     print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
     print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
     mesh_distractors = floating_meshes + falling_meshes
+
+
 
     # ⭐asset 尺度自动适配⭐
     # Resolve any centimeter-meter scale issues of the assets
@@ -417,12 +423,12 @@ def run_sdg(config):
     materials.extend(classic_materials)
 
 
-    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,50)
+    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage)
     materials.extend(omni_pbr_materials)
 
     bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=False)
 
-    bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
+    # bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
 
     
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
@@ -466,7 +472,7 @@ def run_sdg(config):
 
         bind_materials_to_assets(
             target_assets,materials,
-            is_maintain_material_structure=False)
+            is_maintain_material_structure=False,usd_materials_num=5)
 
 
         # Load the new environment
@@ -564,11 +570,11 @@ def run_sdg(config):
         
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range((-0.5, -0.1, .5, 0.5, 0.8, 1.5), working_area_loc_abs)
+        lights_loc_range = infinigen_utils.offset_range((-1.5, -0.1, -1.5, -1.5, 0.8, 1.5), working_area_loc_abs)
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,
-            intensity_range=(1800, 2500),
+            intensity_range=(5000, 12000),
             color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
         )
 
@@ -662,9 +668,9 @@ def run_sdg(config):
 
             distractors = stage.GetPrimAtPath('/Distractors')
 
-            if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
-                bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
-                bind_materials_to_prims_recursively(distractors,omni_pbr_materials,is_mesh_bind_material=True)
+            # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
+            bind_materials_to_prims_recursively(plane_prim,materials,is_mesh_bind_material=True)
+            bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
 
                 
             infinigen_utils.randomize_camera_poses(
