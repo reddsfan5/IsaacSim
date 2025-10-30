@@ -1,4 +1,4 @@
-# from pxr import Usd, UsdGeom, Gf
+from pxr import Usd, UsdGeom, Gf
 # import omni.usd
 import random
 import sys

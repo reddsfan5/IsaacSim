@@ -11,9 +11,13 @@ import lmdb
 import numpy as np
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, retry_if_result
 import sys
+
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
+
 if __name__ == '__main__':
     __package__ = 'lv_tools.dataset_io'
+        
+   
 from ..cores.img_io import img_byte_to_arr
 from ..cores.json_io import load_json_to_dict
 
@@ -371,21 +375,21 @@ def lmdb_2_min_size(lmdb_path: str):
 
 
 if __name__ == '__main__':
-    # print(random.sample([1,2,3,4,5],3))
-    # print(random.choice([1,2,3,4]))
-    # print(random.choices([1,2,3,4,5],k=3))
-    # jsonl_root = r'F:\dataset\OCR\3-2.book_info_classes\book_info_classes_2024-11-06-15w'
-    # jsonl_paths = list(Path(jsonl_root).rglob('*.jsonl'))
+    
+    import pickle
+    
+    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1029_test2/_out_infinigen_posewriter_lv_1029_test2_lmdb')
+    print(len(lmdbloader))
 
-    # lmdb_root = jsonl_root
-    # for jsonl_path in jsonl_paths:
-    #     # jsonl_paths = r'F:\dataset\OCR\3-2.book_info_classes\syn_entire_img_rec_book_info\syn_en_entire_books_v2_2504\syn_en_entire_books_v2_20250410-095914\syn_en_entire_books_v2_20250410-095914.jsonl'
-    #     lj_loader = LmdbJsonLLoader(lmdb_root, jsonl_path)
-    #     print(jsonl_path)
-    #     print(len(lj_loader))
-    #     img_arr,jd = lj_loader.choice()
-    #     from matplotlib import pyplot as plt
-    #     plt.imshow(img_arr)
-    #     plt.show()
-    pass
+    for i in lmdbloader:
+        from matplotlib import pyplot as plt
+        print(i[0])
+        if i[0].decode()=='num-samples':
+            print(i[1].decode())
+        else:
+            s = pickle.loads(i[1])
+            
 
+            img_arr = img_byte_to_arr(s['img'])
+            plt.imshow(img_arr)
+            plt.show()

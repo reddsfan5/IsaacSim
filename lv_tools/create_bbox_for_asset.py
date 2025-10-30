@@ -7,7 +7,7 @@ import numpy as np  # 首先必须导入numpy
 stage = omni.usd.get_context().get_stage()
 
 # 指定目标asset的路径，例如 "/World/TargetAsset"
-target_asset_path = "/Assets/falling_jj/mesh"
+target_asset_path = "/World/ZSJ"
 
 # 获取目标asset的Prim
 target_prim = stage.GetPrimAtPath(target_asset_path)

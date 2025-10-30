@@ -3,9 +3,11 @@ import os
 import pickle
 import traceback
 
+from jwt import InvalidTokenError
 import numpy as np
-from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid
+from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov
 from lv_tools.cores.img_io import cv2imwrite
+from lv_tools.cores.json_io import save_json
 from omni.replicator.core import WriterRegistry
 from omni.replicator.core.writers import Writer
 from omni.replicator.core.annotators import AnnotatorRegistry
@@ -15,6 +17,34 @@ from lv_tools.dataset_io.data_saver import LmdbSaver
 from pprint import pprint
 import PIL
 import io
+
+
+def normalize_bbox(img_h, img_w, xmin, ymin, xmax, ymax):
+    """
+    将边界框的像素坐标转换为归一化参数（xcenter, ycenter, box_w, box_h）。
+    
+    返回:
+        tuple: 归一化后的参数 (xcenter, ycenter, box_w, box_h)，均为float类型。
+    """
+    # 计算归一化中心点坐标
+    xcenter = (xmin + xmax) / (2 * img_w)
+    ycenter = (ymin + ymax) / (2 * img_h)
+    
+    # 计算归一化边界框宽高
+    box_w = (xmax - xmin) / img_w
+    box_h = (ymax - ymin) / img_h
+    
+    return (xcenter, ycenter, box_w, box_h)
+
+
+def img_arr_to_bytes(img_arr:np.ndarray):
+
+    img_pil = PIL.Image.fromarray(img_arr)
+    img_pil = img_pil.convert('RGB')
+    f = io.BytesIO()
+    img_pil.save(f, format='JPEG',quality=90)
+    img_bin = f.getvalue()
+    return img_bin
 
 class BasicDataCollector(BasicWriter):
     def write(self,data:dict):
@@ -107,6 +137,21 @@ class LMDBWriter(PoseWriter):
         return init_info
 
 
+    def _get_idToLabels(self,idToLabels_ori:dict):
+        idToLabels = {}
+        for k,v in idToLabels_ori.items():
+            idToLabels[k] = v['class']
+
+        return idToLabels
+    
+
+    def _cal_labelToIds(self,idToLabels:dict):
+        labelToIds = {}
+        for k,v in idToLabels.items():
+            labelToIds[v] = k
+        return labelToIds
+
+
 
 
     def write(self,data:dict):
@@ -139,13 +184,54 @@ class LMDBWriter(PoseWriter):
                 return 
             add_cuboid_27(self._frame_data)
             add_vfov(self._frame_data)
+            img_bin = img_arr_to_bytes(rgb_data)
+
+            data_dict = {'img':img_bin}
 
 
-            data_dict = {'img':rgb_data,
-                         'label':self._frame_data
-                         }
+            # bbox 2d
+            seg_id_to_labels = self._get_idToLabels(semantic_seg_data['idToLabels'])
+            seg_label_to_ids = self._cal_labelToIds(seg_id_to_labels)
+
+
+            data_dict['label']=seg_label_to_ids
+
+            box_2d_id_to_labels = self._get_idToLabels(bounding_box_2d_data['idToLabels'])
+
+            
+            bboxs_2d_normed = []
+            
+            for bbox in bounding_box_2d_data['data'].tolist():
+                id_box = int(seg_label_to_ids[box_2d_id_to_labels[bbox[0]]])
+                
+                img_w,img_h = self._frame_data['camera_data']['resolution']
+                bbox_normalized = normalize_bbox(img_h,img_w,*bbox[1:-1])
+                bboxs_2d_normed.append([id_box,*bbox_normalized])
+
+            data_dict['bounding_box_2d_tight_fast'] = bboxs_2d_normed
+
+
+            # seg data
+            seg_arr = semantic_seg_data['data']
+            seg_bin = img_arr_to_bytes(seg_arr)
+
+            data_dict['semantic_segmentation'] = seg_bin
+
+
+
+            # bbox 3d
+
+            bbox_3ds = []
+
+            for obj in self._frame_data['objects']:
+                label_id = seg_label_to_ids[obj['label']]
+                bbox_3ds.append([int(label_id),*obj['cuboid_27_screen']])
+
+            data_dict['cuboid_27_screen'] = bbox_3ds
+
+
+
             pickle_bytes = pickle.dumps(data_dict)
-
 
 
             self._saver.put(str(self._frame_id).zfill(10).encode('utf8'),pickle_bytes)
@@ -171,6 +257,17 @@ class LMDBWriter(PoseWriter):
                     draw_projected_keypoints(draw,keypoints)
                     cv2imwrite(img_ori_path,rgb_data)
                     cv2imwrite(img_draw_path,np.array(pil_img))
+
+                    data_dict['camera_view_matrix'] = self._frame_data['camera_data']['camera_view_matrix']
+
+                    data_dict['camera_projection_matrix'] = self._frame_data['camera_data']['camera_projection_matrix']
+
+                    data_dict['size'] = self._frame_data['objects'][0]['size']
+
+                    data_dict.pop('img')
+                    data_dict.pop('semantic_segmentation')
+
+                    save_json(img_ori_path[:-4]+'.json',data_dict)
                 except:
                     traceback.print_exc()
 
@@ -180,6 +277,13 @@ class LMDBWriter(PoseWriter):
             points_27 = self._frame_data['objects'][0]['cuboid_27_world']
 
             init_info = self._get_init_info(label,points_27)
+
+            # calculate and add vfov
+            sensor_height = self._frame_data["camera_data"]["aperture"][1]
+            focal_length = self._frame_data["camera_data"]["focal_length"]
+            vfov = calculate_vfov(sensor_height, focal_length)
+            init_info['vfov'] = round(vfov, 2)
+
             if not os.path.exists(init_config_file_path):
                 with open(init_config_file_path,mode='w',encoding='utf8') as f:
                     json.dump(init_info,f)
@@ -244,4 +348,8 @@ WriterRegistry.register(PoseWriter)
     else None
 )
 
+
+
 '''
+
+

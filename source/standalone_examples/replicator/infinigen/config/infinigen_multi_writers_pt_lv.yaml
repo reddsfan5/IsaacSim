@@ -24,7 +24,7 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 1000
+  total_captures: 100
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
@@ -85,7 +85,7 @@ writers:
 
   - type: LMDBWriter
     kwargs:
-      output_dir: /data2/data/_out_infinigen_posewriter_lv_1024_test2
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1029_test2
       format: null # dope ; centerpose
       use_subfolders: false
       write_debug_images: false
@@ -93,7 +93,7 @@ writers:
       show_bin: 10
 
       semantic_segmentation: true
-      colorize_semantic_segmentation: true
+      colorize_semantic_segmentation: false
       bounding_box_2d_tight: true
 
   # - type: DataVisualizationWriter
