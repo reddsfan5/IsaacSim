@@ -938,3 +938,24 @@ def remove_labels(prim: Usd.Prim, include_descendants: bool = False) -> None:
             remove_all_semantics(p)
     else:
         remove_all_semantics(prim)
+
+
+def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float=0.1,target_value:float=0.35):
+
+    bbox3 = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_]).ComputeWorldBound(target_prim)
+    bbox_range = bbox3.ComputeAlignedRange()
+
+    min_point = bbox_range.GetMin()
+    max_point = bbox_range.GetMax()
+
+    if (test_value:=max(max_point-min_point))>max_limit or test_value<min_limit:
+        scale = target_value/test_value
+        if not target_prim.HasAttribute("xformOp:scale"):
+            UsdGeom.Xformable(target_prim).AddScaleOp()
+
+        ori_value = target_prim.GetAttribute("xformOp:scale").Get()
+        target_prim.GetAttribute("xformOp:scale").Set(ori_value*scale)
+
+
+        # ori_value = UsdGeom.Xformable(target_prim).GetScaleOp().Get()
+        # UsdGeom.Xformable(target_prim).GetScaleOp().Set(ori_value*scale)

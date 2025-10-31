@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import random
 import traceback
 
 from jwt import InvalidTokenError
@@ -68,9 +69,13 @@ class LMDBWriter(PoseWriter):
     def __init__(self,cache_capacity:int=10,*args,**kwargs):
         # rgb = kwargs.pop('rgb',False)
         self._output_dir = kwargs.get('output_dir','')
-        _lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_lmdb'
-        self._saver = LmdbSaver(_lmdb_path,cache_capacity)
+        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_train_lmdb'
+        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_val_lmdb'
+
+        self._train_saver = LmdbSaver(_train_lmdb_path,cache_capacity)
+        self._val_saver = LmdbSaver(_val_lmdb_path,cache_capacity)
         self._show_bin = kwargs.pop('show_bin',1000)
+        self._val_count = 0
 
 
         semantic_segmentation = kwargs.pop('semantic_segmentation',False)
@@ -233,8 +238,13 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
+            if self._val_count<30 and random.uniform(0,1)<0.1:
+                self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
+                self._val_count += 1
+            else:
 
-            self._saver.put(str(self._frame_id).zfill(10).encode('utf8'),pickle_bytes)
+                self._train_saver.put(str(self._frame_id).zfill(10).encode('utf8'),pickle_bytes)
+                self._frame_id += 1
 
 
 
@@ -288,18 +298,9 @@ class LMDBWriter(PoseWriter):
                 with open(init_config_file_path,mode='w',encoding='utf8') as f:
                     json.dump(init_info,f)
 
+                
 
 
-
-
-
-            # If render products are NOT separated into subfolders increment the frame id after processing each render product
-            if not self._use_subfolders:
-                self._frame_id += 1
-
-        # If render products are separated into subfolders increment the frame id after processing all render products
-        if self._use_subfolders:
-            self._frame_id += 1
 
 
 

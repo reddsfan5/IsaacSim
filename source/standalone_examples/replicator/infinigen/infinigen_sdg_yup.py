@@ -342,6 +342,10 @@ def run_sdg(config):
     manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
     print(f"[SDG-Infinigen] Loaded {len(manual_floating_assets)} floating manual-labeled assets")
     print(f"[SDG-Infinigen] Loaded {len(manual_falling_assets)} falling manual-labeled assets")
+
+    
+
+
     target_assets = auto_floating_assets + auto_falling_assets + manual_floating_assets + manual_falling_assets
             
 
@@ -488,7 +492,11 @@ def run_sdg(config):
 
         stage = omni.usd.get_context().get_stage()
 
+        # for asset_to_adapt in target_assets:
+            # infinigen_utils.asset_size_adaptive(asset_to_adapt)
         # Get the plane prim 
+        # for _ in range(3):
+            # simulation_app.update()
 
         match_string = random.choice(["TableDining"])
         # match_string = random.choice(["TableDining",'floor'])

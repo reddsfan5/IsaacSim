@@ -85,12 +85,12 @@ writers:
 
   - type: LMDBWriter
     kwargs:
-      output_dir: /data2/data/_out_infinigen_posewriter_lv_1029_test2
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1031_jj
       format: null # dope ; centerpose
       use_subfolders: false
       write_debug_images: false
       skip_empty_frames: true
-      show_bin: 10
+      show_bin: 100
 
       semantic_segmentation: true
       colorize_semantic_segmentation: false
@@ -161,12 +161,17 @@ labeled_assets:
       num: 0
       gravity_disabled_chance: 0
     
+    - url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
+      label: GD960
+      num: 0
+      gravity_disabled_chance: 0
+    
 
 distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 5
+    num: 10
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
@@ -180,7 +185,7 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 5
+    num: 10
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
@@ -217,7 +222,7 @@ materials_control:
     materials_root: /pbr_materials
     # pbr_prob: 0.5
     color: [0,1]
-    num: 10
+    num: 50
     metallic_constant: [0.1,0.99]
     reflection_roughness: [0.01,1]
     texture_scale: [.1,2]
@@ -229,5 +234,5 @@ materials_control:
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: false
+debug_mode: true
 headless: true
