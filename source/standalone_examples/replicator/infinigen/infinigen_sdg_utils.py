@@ -171,7 +171,7 @@ def get_random_location_on_sphere(
 ) -> Tuple[Gf.Vec3d, Gf.Quatf]:
     """
     生成 Y-UP 场景中的随机相机位姿，使相机看向 origin。
-
+    额外增加两个极端极角下相机出现的概率。
     球坐标约定（Y 为极轴）：
       θ: 极角，0° 在 +Y，180° 在 -Y
       φ: 方位角，绕 Y 轴，从 +X 方向起，向 +Z 递增（右手系）
@@ -182,9 +182,19 @@ def get_random_location_on_sphere(
     # 角度转弧度
     theta_min = math.radians(polar_angle_range[0])
     theta_max = math.radians(polar_angle_range[1])
-    theta = random.uniform(theta_min, theta_max)
+
+    if theta_max==90 and theta_min==0:
+        if random.uniform(0,1) < 0.15:
+            theta = random.uniform(0, 15)
+        elif random.uniform(0,1) < 0.3:
+            theta = random.uniform(75, 95)
+        else:
+            theta = random.uniform(theta_min, theta_max)
+    else:
+        theta = random.uniform(theta_min, theta_max)
+
+
     phi = random.uniform(0.0, 2.0 * math.pi)
-    # phi = random.uniform(2.0*math.pi*270/360, 2.0*math.pi*270/360)
 
     # 半径
     r = random.uniform(radius_range[0], radius_range[1])
@@ -249,7 +259,7 @@ def calculate_camera_orientation(x0, y0, z0, target_x, target_y, target_z):
     yaw = calculate_yaw(x0, y0, z0, target_x, target_y, target_z)
     pitch = calculate_pitch(x0, y0, z0, target_x, target_y, target_z)
     
-    return pitch/math.pi*180, yaw/math.pi*180, random.uniform(-10,10)
+    return pitch/math.pi*180, yaw/math.pi*180, random.uniform(-15,15)
 
 
 
@@ -947,15 +957,18 @@ def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float
 
     min_point = bbox_range.GetMin()
     max_point = bbox_range.GetMax()
-
+    scale = 1
     if (test_value:=max(max_point-min_point))>max_limit or test_value<min_limit:
         scale = target_value/test_value
         if not target_prim.HasAttribute("xformOp:scale"):
             UsdGeom.Xformable(target_prim).AddScaleOp()
 
         ori_value = target_prim.GetAttribute("xformOp:scale").Get()
+
+    
+
         target_prim.GetAttribute("xformOp:scale").Set(ori_value*scale)
-
-
         # ori_value = UsdGeom.Xformable(target_prim).GetScaleOp().Get()
         # UsdGeom.Xformable(target_prim).GetScaleOp().Set(ori_value*scale)
+
+    return scale

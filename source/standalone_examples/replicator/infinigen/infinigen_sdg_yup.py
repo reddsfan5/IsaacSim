@@ -420,17 +420,17 @@ def run_sdg(config):
 
 
     # # 将USD文件作为引用添加到当前舞台
-    usd_file_path = "/home/ubuntu/lxd/usd_file/glb/general_Looks.usd"
-    prim_path = "/general_looks"
-    add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
-    classic_materials = infinigen_utils.find_materials(stage, "/general_looks/Looks")
+    usd_file_path = materials_control_config['classic_materials']['usd_file_path']
+    classic_materials_prim_path = materials_control_config['classic_materials']['scope_path']
+    add_reference_to_stage(usd_path=usd_file_path, prim_path=classic_materials_prim_path)
+    classic_materials = infinigen_utils.find_materials(stage, f"{classic_materials_prim_path}/Looks")
     materials.extend(classic_materials)
 
 
     omni_pbr_materials = generate_pbr_materials(materials_control_config,stage)
     materials.extend(omni_pbr_materials)
 
-    bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=False)
+    bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=True)
 
     # bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
 
@@ -476,7 +476,7 @@ def run_sdg(config):
 
         bind_materials_to_assets(
             target_assets,materials,
-            is_maintain_material_structure=False,usd_materials_num=5)
+            is_maintain_material_structure=True,usd_materials_num=5)
 
 
         # Load the new environment
@@ -490,14 +490,8 @@ def run_sdg(config):
 
 
 
-        stage = omni.usd.get_context().get_stage()
 
-        # for asset_to_adapt in target_assets:
-            # infinigen_utils.asset_size_adaptive(asset_to_adapt)
-        # Get the plane prim 
-        # for _ in range(3):
-            # simulation_app.update()
-
+        #Get the plane prim 
         match_string = random.choice(["TableDining"])
         # match_string = random.choice(["TableDining",'floor'])
         root_path= '/Environment'
@@ -537,13 +531,19 @@ def run_sdg(config):
             print(f"相机位置:{camera_loc}")
             set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
         
-        
-        infinigen_utils.randomize_poses(
-            target_assets,
-            location_range=(0,0,0,0,0,0),
-            rotation_range=(0, 0),
-            scale_range=(1, 1),
-        )
+        # ⭐随机化位置，旋转，缩放⭐
+        # infinigen_utils.randomize_poses(
+        #     target_assets,
+        #     location_range=(0,0,0,0,0,0),
+        #     rotation_range=(0, 0),
+        #     scale_range=(1, 1),
+        # )
+
+
+        for asset_to_adapt in target_assets:
+            infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
+            infinigen_utils.asset_size_adaptive(asset_to_adapt)
+
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
 
@@ -576,6 +576,8 @@ def run_sdg(config):
         )
         
         
+
+
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
         lights_loc_range = infinigen_utils.offset_range((-1.5, -0.1, -1.5, -1.5, 0.8, 1.5), working_area_loc_abs)

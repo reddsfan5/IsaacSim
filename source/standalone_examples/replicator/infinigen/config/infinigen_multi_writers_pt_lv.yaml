@@ -24,11 +24,11 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 100
+  total_captures: 50
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 50
+  num_dropped_captures_per_env: 20
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 5
   # Resolution of the captured frames
@@ -49,6 +49,21 @@ capture:
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
+
+
+  - type: LMDBWriter
+    kwargs:
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1031_test
+      format: null # dope ; centerpose
+      use_subfolders: false
+      write_debug_images: false
+      skip_empty_frames: true
+      show_bin: 2
+
+      semantic_segmentation: true
+      colorize_semantic_segmentation: false
+      bounding_box_2d_tight: true
+
   # - type: BasicWriter
   #   kwargs:
   #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1023_junjian_larger_polar_test
@@ -57,13 +72,6 @@ writers:
   #     colorize_semantic_segmentation: true
   #     bounding_box_2d_tight: true
 
-  # - type: BasicDataCollector
-  #   kwargs:
-  #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1023_junjian_larger_polar
-  #     rgb: false
-  #     semantic_segmentation: true
-  #     colorize_semantic_segmentation: true
-  #     bounding_box_2d_tight: true
 
   # - type: PoseWriter
   #   kwargs:
@@ -73,28 +81,6 @@ writers:
   #     write_debug_images: false
   #     skip_empty_frames: true
 
-  # - type: PoseDataCollector
-  #   kwargs:
-  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1020_test
-  #     format: null # dope ; centerpose
-  #     use_subfolders: true
-  #     write_debug_images: false
-  #     skip_empty_frames: true
-
-
-
-  - type: LMDBWriter
-    kwargs:
-      output_dir: /data2/data/_out_infinigen_posewriter_lv_1031_jj
-      format: null # dope ; centerpose
-      use_subfolders: false
-      write_debug_images: false
-      skip_empty_frames: true
-      show_bin: 100
-
-      semantic_segmentation: true
-      colorize_semantic_segmentation: false
-      bounding_box_2d_tight: true
 
   # - type: DataVisualizationWriter
   #   kwargs:
@@ -138,7 +124,7 @@ labeled_assets:
 
     - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
       label: jj
-      num: 1
+      num: 0
       gravity_disabled_chance: 0
 
     - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
@@ -163,7 +149,7 @@ labeled_assets:
     
     - url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
       label: GD960
-      num: 0
+      num: 1
       gravity_disabled_chance: 0
     
 
@@ -235,4 +221,4 @@ materials_control:
 
 # Hide ceiling, move viewport camera to top-down view above the working area
 debug_mode: true
-headless: true
+headless: false

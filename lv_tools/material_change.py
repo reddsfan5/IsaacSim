@@ -192,7 +192,7 @@ def bind_material_to_prim_with_seed_randomly(prim:UsdGeom.Gprim, mats:list[UsdSh
     m = rng.choices(choices, weights=weights, k=1)[0] if weights else rng.choice(choices)
     bind_material_to_prim(prim,m)
 
-def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Material],bindingStrength:str=UsdShade.Tokens.strongerThanDescendants):
+def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Material],bindingStrength:str=UsdShade.Tokens.weakerThanDescendants):
     bind_material = random.choice(mats)
     bind_material_to_prim(prim,bind_material,bindingStrength=bindingStrength)
     # print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
@@ -206,6 +206,27 @@ def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],materia
         model_mesh.CreateSubdivisionSchemeAttr(subdivision_scheme) # loop catmullClark
     
 
+# def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShade.Material],is_maintain_material_structure:bool=True,usd_materials_num:int=None):
+#     if usd_materials_num:
+#         materials = random.sample(materials,usd_materials_num)
+    
+#     for target_asset in target_assets:
+
+#         for prim in Usd.PrimRange(target_asset):
+#             try:
+#                 if prim.IsA(UsdGeom.Gprim):
+#                     if is_maintain_material_structure:
+#                         bind_material_to_prim_randomly(prim,materials)
+
+#                     random_gprim_color(target_asset)
+
+
+#                 elif prim.IsA(UsdGeom.Subset):
+#                     bind_material_to_prim_randomly(prim,materials)
+#             except:
+#                 continue
+
+
 def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShade.Material],is_maintain_material_structure:bool=True,usd_materials_num:int=None):
     if usd_materials_num:
         materials = random.sample(materials,usd_materials_num)
@@ -215,11 +236,8 @@ def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShad
         for prim in Usd.PrimRange(target_asset):
             try:
                 if prim.IsA(UsdGeom.Gprim):
-                    if is_maintain_material_structure:
-                        bind_material_to_prim_randomly(prim,materials)
-
+                    bind_material_to_prim_randomly(prim,materials)
                     random_gprim_color(target_asset)
-
 
                 elif prim.IsA(UsdGeom.Subset):
                     bind_material_to_prim_randomly(prim,materials)
