@@ -42,7 +42,7 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [.7, 2.8]
+  camera_distance_to_target_range: [.7, 3.2]
   # Number of scene lights to create in the working area
   num_scene_lights: 20
   polar_angle_range: [0,90]

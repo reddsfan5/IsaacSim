@@ -183,16 +183,7 @@ def get_random_location_on_sphere(
     theta_min = math.radians(polar_angle_range[0])
     theta_max = math.radians(polar_angle_range[1])
 
-    if theta_max==90 and theta_min==0:
-        if random.uniform(0,1) < 0.15:
-            theta = random.uniform(0, 15)
-        elif random.uniform(0,1) < 0.3:
-            theta = random.uniform(75, 95)
-        else:
-            theta = random.uniform(theta_min, theta_max)
-    else:
-        theta = random.uniform(theta_min, theta_max)
-
+    theta = random.uniform(theta_min, theta_max)
 
     phi = random.uniform(0.0, 2.0 * math.pi)
 
@@ -254,12 +245,12 @@ def calculate_pitch(x0, y0, z0, target_x, target_y, target_z):
 
 
 # 主函数，计算相机的intrinsic旋转欧拉角order->Y,X,Z,then trans to extrinsic ,order -> Z,X,Y
-def calculate_camera_orientation(x0, y0, z0, target_x, target_y, target_z):
+def calculate_camera_pitch_yaw(x0, y0, z0, target_x, target_y, target_z):
     # 计算方位角和俯仰角
     yaw = calculate_yaw(x0, y0, z0, target_x, target_y, target_z)
     pitch = calculate_pitch(x0, y0, z0, target_x, target_y, target_z)
     
-    return pitch/math.pi*180, yaw/math.pi*180, random.uniform(-15,15)
+    return pitch/math.pi*180, yaw/math.pi*180
 
 
 
@@ -317,18 +308,34 @@ def randomize_camera_poses(
         look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
 
         # 随机机位（Y-UP）
+        roll = random.uniform(-15,15)
+
+        if polar_angle_range[1]==90 and polar_angle_range[0]==0:
+            if random.uniform(0,1) < 0.15:
+                cur_polar_angle_range = (0, 15)
+                roll = random.uniform(0,360)
+            elif random.uniform(0,1) < 0.3:
+                cur_polar_angle_range = (75, 95)
+            else:
+                cur_polar_angle_range = polar_angle_range
+
+        else:
+            cur_polar_angle_range = polar_angle_range
+        
+
+        
         loc= get_random_location_on_sphere(
             origin=look_at,
             radius_range=distance_range,
-            polar_angle_range=polar_angle_range
+            polar_angle_range=cur_polar_angle_range
         )
-        euler_angle = calculate_camera_orientation(*loc,0,0,0)
+        pitch,yaw = calculate_camera_pitch_yaw(*loc,0,0,0)
         # 写回（此函数由isaacsim项目里提供）
         # set_transform_attributes(cam, location=loc, orientation=euler_to_quaternion(*euler_angle))
         
+        print(f'roll:{roll}')
         
-        
-        set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d(euler_angle),rotate_order="ZXY")
+        set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d((pitch,yaw,roll)),rotate_order="ZXY")
 
 
 
