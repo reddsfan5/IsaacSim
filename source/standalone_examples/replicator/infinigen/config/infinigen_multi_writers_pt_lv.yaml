@@ -24,13 +24,13 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 50
+  total_captures: 10000
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 20
+  num_dropped_captures_per_env: 50
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 5
+  num_cameras: 10
   # Resolution of the captured frames
   resolution: [640, 480]
   # Disable render products throughout the pipeline, enable them only when capturing the frames
@@ -53,12 +53,12 @@ writers:
 
   - type: LMDBWriter
     kwargs:
-      output_dir: /data2/data/_out_infinigen_posewriter_lv_1031_test
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1031_jj_with_base
       format: null # dope ; centerpose
       use_subfolders: false
       write_debug_images: false
       skip_empty_frames: true
-      show_bin: 2
+      show_bin: 300
 
       semantic_segmentation: true
       colorize_semantic_segmentation: false
@@ -124,7 +124,7 @@ labeled_assets:
 
     - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
       label: jj
-      num: 0
+      num: 1
       gravity_disabled_chance: 0
 
     - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
@@ -149,7 +149,7 @@ labeled_assets:
     
     - url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
       label: GD960
-      num: 1
+      num: 0
       gravity_disabled_chance: 0
     
 
@@ -220,5 +220,5 @@ materials_control:
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: true
-headless: false
+debug_mode: false
+headless: true

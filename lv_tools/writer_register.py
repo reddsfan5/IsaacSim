@@ -96,7 +96,7 @@ class LMDBWriter(PoseWriter):
                 )
             )
 
-    def _get_init_info(self,label:str,points_27:list):
+    def _get_init_info(self,label:str,points_27:list,scale:float=1):
         init_info = {
             # 当前批次数据类别列表
             "classNames": [label],
@@ -107,6 +107,7 @@ class LMDBWriter(PoseWriter):
                 "Label": 0,
                 # 3d模型初始位姿的第0 和26 个点坐标
                 "ModelBox": [*points_27[0],*points_27[-1]],
+                "Scale": scale,
                 # 3d 模型初始位姿
                 "Point3Ds": points_27,
                 # 3d模型初始位姿视图矩阵 -- 默认单位制 -- 一般不需要改
@@ -134,7 +135,7 @@ class LMDBWriter(PoseWriter):
                 # 是否为等比模型
                 "equalPhysicalSize": False,
                 "ModelPath": "",
-                "isProportionalSize": False
+                "isProportionalSize": False if scale == 1 else True,
                     }
                 },
                 "ProjectName": ""
@@ -268,10 +269,12 @@ class LMDBWriter(PoseWriter):
                     cv2imwrite(img_ori_path,rgb_data)
                     cv2imwrite(img_draw_path,np.array(pil_img))
 
-                    data_dict['camera_view_matrix'] = self._frame_data['camera_data']['camera_view_matrix']
+                    # data_dict['camera_view_matrix'] = self._frame_data['camera_data']['camera_view_matrix']
 
-                    data_dict['camera_projection_matrix'] = self._frame_data['camera_data']['camera_projection_matrix']
-
+                    # data_dict['camera_projection_matrix'] = self._frame_data['camera_data']['camera_projection_matrix']
+                    data_dict['rotation_matrix_camera_frame'] = self._frame_data['objects'][0]['rotation_matrix_camera_frame']
+                    data_dict['rotation_matrix_world_frame'] = self._frame_data['objects'][0]['rotation_matrix_world_frame']
+                    data_dict['location_camera_frame'] = self._frame_data['objects'][0]['location_camera_frame']
                     data_dict['size'] = self._frame_data['objects'][0]['size']
 
                     data_dict.pop('img')
@@ -285,8 +288,8 @@ class LMDBWriter(PoseWriter):
 
             label = self._frame_data['objects'][0]['label']
             points_27 = self._frame_data['objects'][0]['cuboid_27_world']
-
-            init_info = self._get_init_info(label,points_27)
+            scale = self._frame_data['objects'][0]['local_to_world_transform'][0][0]
+            init_info = self._get_init_info(label,points_27,scale)
 
             # calculate and add vfov
             sensor_height = self._frame_data["camera_data"]["aperture"][1]

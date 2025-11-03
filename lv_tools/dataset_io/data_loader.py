@@ -378,7 +378,7 @@ if __name__ == '__main__':
 
     import pickle
     
-    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1031_test/_out_infinigen_posewriter_lv_1031_test_train_lmdb')
+    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1031_jj_with_base/_out_infinigen_posewriter_lv_1031_jj_with_base_train_lmdb')
     print(len(lmdbloader))
 
     for i in lmdbloader:
@@ -386,10 +386,10 @@ if __name__ == '__main__':
         print(i[0])
         if i[0].decode()=='num-samples':
             print(i[1].decode())
-        else:
-            s = pickle.loads(i[1])
+        # else:
+        #     s = pickle.loads(i[1])
             
 
-            img_arr = img_byte_to_arr(s['img'])
-            plt.imshow(img_arr)
-            plt.show()
+        #     img_arr = img_byte_to_arr(s['img'])
+        #     plt.imshow(img_arr)
+        #     plt.show()

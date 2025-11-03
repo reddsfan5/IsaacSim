@@ -32,6 +32,8 @@ import traceback
 
 
 
+
+
 # Default config dict, can be updated/replaced using json/yaml config files ('--config' cli argument)
 config = {
     "environments": {
@@ -213,6 +215,7 @@ sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
 from lv_tools.material_change import bind_material_to_prim_randomly, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 from lv_tools.material_change import random_gprim_color
+from lv_tools.cores.json_io import load_json_to_dict
 import lv_tools.writer_register
 def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage)->list[UsdShade.Material]:
 
@@ -476,7 +479,7 @@ def run_sdg(config):
 
         bind_materials_to_assets(
             target_assets,materials,
-            is_maintain_material_structure=True,usd_materials_num=5)
+            is_maintain_material_structure=True,usd_materials_num=8)
 
 
         # Load the new environment
@@ -542,7 +545,7 @@ def run_sdg(config):
 
         for asset_to_adapt in target_assets:
             infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
-            infinigen_utils.asset_size_adaptive(asset_to_adapt)
+            target_rezise_ritio = infinigen_utils.asset_size_adaptive(asset_to_adapt)
 
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
@@ -698,6 +701,13 @@ def run_sdg(config):
             capture_one_frame(rt_subframes,step_delta_time,pause_timeline=True,wait_after=wait_after_each_capture)
             capture_counter += 1
 
+
+
+            # for cur_asset in target_assets:
+            #     from isaacsim.core.utils.semantics import get_labels
+            #     label = get_labels(cur_asset)['class'][0].lower()
+               
+
         # Check if the render products need to be disabled until the next capture
         if disable_render_products:
             for rp in render_products:
@@ -718,6 +728,20 @@ def run_sdg(config):
     
     # Wait until the data is written to the disk
     rep.orchestrator.wait_until_complete()
+    
+    for cur_asset in target_assets:
+        from isaacsim.core.utils.semantics import get_labels
+        label = get_labels(cur_asset)
+        print(label)
+        
+    
+    # target_rezise_ritio
+
+    # init_config_file_path = os.path.join(writers_config['kwargs']['output_dir'],'config.json')
+    # if os.path.exists(init_config_file_path):
+    #     jd = load_json_to_dict(init_config_file_path)
+    #     jd
+
 
     # Detach the writers
     print(f"[SDG-Infinigen] Detaching writers")
