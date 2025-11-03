@@ -244,7 +244,7 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
-            if self._val_count<30 and random.uniform(0,1)<0:
+            if self._val_count<30 and random.uniform(0,1)<0.01:
                 self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
                 self._val_count += 1
             else:
@@ -276,13 +276,13 @@ class LMDBWriter(PoseWriter):
                     cv2imwrite(img_ori_path,bgr_data)
                     cv2imwrite(img_draw_path,np.array(pil_img))
 
-                    # data_dict['camera_view_matrix'] = self._frame_data['camera_data']['camera_view_matrix']
 
-                    # data_dict['camera_projection_matrix'] = self._frame_data['camera_data']['camera_projection_matrix']
                     data_dict['rotation_matrix_camera_frame'] = self._frame_data['objects'][0]['rotation_matrix_camera_frame']
                     data_dict['rotation_matrix_world_frame'] = self._frame_data['objects'][0]['rotation_matrix_world_frame']
                     data_dict['location_camera_frame'] = self._frame_data['objects'][0]['location_camera_frame']
                     data_dict['size'] = self._frame_data['objects'][0]['size']
+
+                    data_dict['vfov'] = self._frame_data['camera_data']['vfov']
 
                     data_dict.pop('img')
                     data_dict.pop('semantic_segmentation')
@@ -296,19 +296,18 @@ class LMDBWriter(PoseWriter):
             
             
             init_config_file_path = os.path.join(self._output_dir,'config.json')
-
-            label = self._frame_data['objects'][0]['label']
-            points_27 = self._frame_data['objects'][0]['cuboid_27_world']
-            scale = self._frame_data['objects'][0]['local_to_world_transform'][0][0]
-            init_info = self._get_init_info(label,points_27,scale)
-
-            # calculate and add vfov
-            sensor_height = self._frame_data["camera_data"]["aperture"][1]
-            focal_length = self._frame_data["camera_data"]["focal_length"]
-            vfov = calculate_vfov(sensor_height, focal_length)
-            init_info['vfov'] = round(vfov, 2)
-
             if not os.path.exists(init_config_file_path):
+
+                label = self._frame_data['objects'][0]['label']
+                points_27 = self._frame_data['objects'][0]['cuboid_27_world']
+                scale = self._frame_data['objects'][0]['local_to_world_transform'][0][0]
+                init_info = self._get_init_info(label,points_27,scale)
+
+                
+                # placeholder for deploy: 我们的项目依赖这个配置
+                init_info['vfov'] = round(self._frame_data['camera_data']['vfov'], 2)
+
+            
                 with open(init_config_file_path,mode='w',encoding='utf8') as f:
                     json.dump(init_info,f)
 

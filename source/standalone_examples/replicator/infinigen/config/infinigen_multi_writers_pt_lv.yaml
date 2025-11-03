@@ -23,15 +23,18 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 6000
+  total_captures: 100
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 50
+  num_dropped_captures_per_env: 10
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 10
+  num_cameras: 5
   # Resolution of the captured frames
   resolution: [640, 480]
+  
+  focal_lengths: [24,28,35,50]
+
   # Disable render products throughout the pipeline, enable them only when capturing the frames
   disable_render_products: true
   # Number of subframes to render (RayTracedLighting) to avoid temporal rendering artifacts (e.g. ghosting)
@@ -41,9 +44,9 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [.7, 2.5]
+  camera_distance_to_target_range: [.9, 2.2]
   # Number of scene lights to create in the working area
-  num_scene_lights: 25
+  num_scene_lights: 12
   polar_angle_range: [0,90]
 
 writers:
@@ -159,7 +162,8 @@ distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 30
+    num: 2
+    distractor_shapes_max_num: 10
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-1,1]
       y: [0,0.5]
@@ -173,7 +177,8 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 30
+    num: 2
+    distractor_meshes_max_num: 10
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-1,1]
@@ -222,5 +227,5 @@ materials_control:
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: false
-headless: true
+debug_mode: true
+headless: false

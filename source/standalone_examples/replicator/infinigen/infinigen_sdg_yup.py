@@ -31,132 +31,6 @@ import traceback
 
 
 
-
-
-
-# Default config dict, can be updated/replaced using json/yaml config files ('--config' cli argument)
-config = {
-    "environments": {
-        # List of background environments (list of folders or files)
-        "folders": ["/Isaac/Samples/Replicator/Infinigen/dining_rooms/"],
-        "files": [],
-    },
-    "capture": {
-        # Number of captures (frames = total_captures * num_cameras)
-        "total_captures": 28,
-        # Number of captures per environment before running the simulation (objects in the air)
-        "num_floating_captures_per_env": 0,
-        # Number of captures per environment after running the simulation (objects fallen)
-        "num_dropped_captures_per_env": 6,
-        # Number of cameras to capture from (each camera will have a render product attached)
-        "num_cameras": 6,
-        # Resolution of the captured frames
-        "resolution": (720, 480),
-        # Disable render products throughout the piepline, enable them only when capturing the frames
-        "disable_render_products": False,
-        # Number of subframes to render (RayTracedLighting) to avoid temporal rendering artifacts (e.g. ghosting)
-        "rt_subframes": 8,
-        # Use PathTracing renderer or RayTracedLighting when capturing the frames
-        "path_tracing": False,
-        # Offset to avoid the images always being in the image center
-        "camera_look_at_target_offset": 0.1,
-        # Distance between the camera and the target object
-        "camera_distance_to_target_range": (1.15, 1.45),
-        # Number of scene lights to create in the working area
-        "num_scene_lights": 3,
-    },
-    "writers": [
-        {
-            # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
-            "type": "PoseWriter",
-            "kwargs": {
-                "output_dir": "_out_infinigen_posewriter",
-                "format": None,
-                "use_subfolders": True,
-                "write_debug_images": True,
-                "skip_empty_frames": False,
-            },
-        }
-    ],
-    "labeled_assets": {
-        # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
-        "auto_label": {
-            # Number of labeled assets to create from the given files/folders list
-            "num": 0,
-            # Chance to disable gravity for the labeled assets (0.0 - all the assets will fall, 1.0 - all the assets will float)
-            "gravity_disabled_chance": 0,
-            # List of folders and files to search for the labeled assets
-            "folders": ["/Isaac/Props/YCB/Axis_Aligned/"],
-            "files": ["/Isaac/Props/YCB/Axis_Aligned/036_wood_block.usd"],
-            # Regex pattern to replace in the asset name (e.g. "002_banana" -> "banana")
-            "regex_replace_pattern": r"^\d+_",
-            "regex_replace_repl": "",
-        },
-        # Manually labeled assets with specific labels and properties
-        "manual_label": [
-            {
-                "url": "/Isaac/Props/YCB/Axis_Aligned/008_pudding_box.usd",
-                "label": "pudding_box",
-                "num": 0,
-                "gravity_disabled_chance": 1,
-            },
-            # {
-            #     "url": "/Isaac/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
-            #     "label": "mustard_bottle",
-            #     "num": 2,
-            #     "gravity_disabled_chance": 0,
-            # },
-                        {
-                "url": "file:///home/ubuntu/lxd/usd_file/glb/converted/cs353.usd",
-                "label": "353",
-                "num": 3,
-                "gravity_disabled_chance": 0,
-            },
-            
-        ],
-    },
-    "distractors": {
-        # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
-        "shape_distractors": {
-            # Amount of shape distractors to create
-            "num": 0,
-            # Chance to disable gravity for the shape distractors
-            "gravity_disabled_chance": 0,
-            # List of shape types to randomly choose from
-            "types": ["capsule", "cone", "cylinder", "sphere", "cube"],
-        },
-        # Mesh distractors (unlabeled background assets) to drop in the scene
-        "mesh_distractors": {
-            # Amount of mesh distractors to create
-            "num": 0,
-            # Chance to disable gravity for the mesh distractors
-            "gravity_disabled_chance": 0,
-            # List of folders and files to search to randomly choose from
-            "folders": [
-                "/NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/",
-                "/NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Cones/",
-            ],
-            "files": [
-                "/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd",
-                "/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd",
-                "/Isaac/Environments/Simple_Warehouse/Props/S_TrafficCone.usd",
-                "/Isaac/Environments/Simple_Warehouse/Props/S_WetFloorSign.usd",
-                "/Isaac/Environments/Office/Props/SM_Book_03.usd",
-                "/Isaac/Environments/Office/Props/SM_Book_34.usd",
-                "/Isaac/Environments/Office/Props/SM_BookOpen_01.usd",
-                "/Isaac/Environments/Office/Props/SM_Briefcase.usd",
-                "/Isaac/Environments/Office/Props/SM_Extinguisher.usd",
-                "/Isaac/Environments/Hospital/Props/SM_MedicalBag_01a.usd",
-                "/Isaac/Environments/Hospital/Props/SM_MedicalBox_01g.usd",
-            ],
-        },
-    },
-    # Hide ceilling to get a top-down view of the scene, move viewport camera to the top-down view
-    "debug_mode": True,
-    "headless": False
-}
-
-
 # Check if there are any config files (yaml or json) are passed as arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", required=False, help="Include specific config parameters (json or yaml))")
@@ -182,7 +56,7 @@ else:
     print(f"[SDG-Infinigen] Config file {args.config} does not exist, will use default config")
 
 # Update the default config dict with the external one
-config.update(args_config)
+config = args_config
 
 
 
@@ -301,8 +175,10 @@ def run_sdg(config):
     # Create the cameras
     cameras = []
     num_cameras = capture_config.get("num_cameras", 0)
+    focalLengths = capture_config.get('focal_lengths',[15,24,28,35,50])
     for i in range(num_cameras):
         cam_prim = stage.DefinePrim(f"/Cameras/cam_{i}", "Camera")
+        cam_prim.GetAttribute("focalLength").Set(focalLengths[i%len(focalLengths)])
         cam_prim.GetAttribute("clippingRange").Set((0.25, 1000))
         cameras.append(cam_prim)
     print(f"[SDG-Infinigen] Created {len(cameras)} cameras")
@@ -356,18 +232,19 @@ def run_sdg(config):
     # ⭐加载干扰物⭐
     # Load the shape distractors
     shape_distractors_config = distractors_config.get("shape_distractors", {})
-    floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
-    print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
-    print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
-    shape_distractors = floating_shapes + falling_shapes
-
+    # floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
+    # print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
+    # print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
+    # shape_distractors = floating_shapes + falling_shapes
+    shape_distractors = []
     # Load the mesh distractors
     mesh_distractors_config = distractors_config.get("mesh_distractors", {})
-    floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
+    # floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
     
-    print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
-    print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
-    mesh_distractors = floating_meshes + falling_meshes
+    # print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
+    # print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
+    # mesh_distractors = floating_meshes + falling_meshes
+    mesh_distractors = []
 
 
 
@@ -387,7 +264,8 @@ def run_sdg(config):
     # Register replicator randomizers and trigger them once
     print(f"[SDG-Infinigen] Registering replicator graph randomizers")
     infinigen_utils.register_dome_light_randomizer()
-    infinigen_utils.register_shape_distractors_color_randomizer(shape_distractors)
+
+    # infinigen_utils.register_shape_distractors_color_randomizer(shape_distractors)
 
    
    
@@ -442,6 +320,12 @@ def run_sdg(config):
     # Start the SDG loop
     env_cycle = cycle(env_urls)
     capture_counter = 0
+    env_count = 0
+
+    env_rand_times = total_captures//((capture_config['num_floating_captures_per_env']+capture_config['num_dropped_captures_per_env']))
+
+    
+    
     while capture_counter < total_captures:
         # Load the next environment
         env_url = next(env_cycle)
@@ -470,6 +354,24 @@ def run_sdg(config):
 
         #     except:
         #         pass
+
+
+        if env_count%(env_rand_times//(shape_distractors_config.get('distractor_shapes_max_num')/shape_distractors_config.get('num',1)-1))==0:
+
+            floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
+            print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
+            print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
+            shape_distractors += floating_shapes + falling_shapes
+
+        if env_count%(env_rand_times//(mesh_distractors_config.get('distractor_meshes_max_num')/mesh_distractors_config.get('num',1)-1))==0:
+            floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
+        
+            print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
+            print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
+            mesh_distractors += floating_meshes + falling_meshes
+
+
+
 
         infinigen_utils.remove_prim('/Assets',simulation_app)
         manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
@@ -583,7 +485,7 @@ def run_sdg(config):
 
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range((-1.5, -0.1, -1.5, -1.5, 0.8, 1.5), working_area_loc_abs)
+        lights_loc_range = infinigen_utils.offset_range((-1.5, -0.1, -1.5, 1.5, 0.8, 1.5), working_area_loc_abs)
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,
@@ -717,7 +619,7 @@ def run_sdg(config):
         if use_path_tracing:
             carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
 
-
+        env_count += 1
 
 
     #todo 跑一段物理（掉落阶段）
