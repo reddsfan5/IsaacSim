@@ -342,7 +342,7 @@ def data_filter_and_adapt(root: Union[str, Path], dst_folder: Union[Path, str] =
         move_out_none_interesting_obj(jd,interesting_labels)
 
 
-        if not is_ann_valid(jd, truncation_ratio=.5, visibility_ratio=.65,rotate_threshold=90):
+        if not is_ann_valid(jd, truncation_ratio=.5, visibility_ratio=.65,rotate_threshold=360):
             move_out_invalid_data(json_path, dst_folder)
             continue
         add_cuboid_27(jd)

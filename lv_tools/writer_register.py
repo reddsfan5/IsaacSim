@@ -3,6 +3,7 @@ import os
 import pickle
 import random
 import traceback
+import cv2
 
 from jwt import InvalidTokenError
 import numpy as np
@@ -71,11 +72,15 @@ class LMDBWriter(PoseWriter):
         self._output_dir = kwargs.get('output_dir','')
         _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_train_lmdb'
         _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_val_lmdb'
+        self._truncation_ratio = kwargs.pop('truncation_ratio',.5)
+        self._visibility_ratio = kwargs.pop('visibility_ratio',.65)
+        self._rotate_threshold = kwargs.pop('rotate_threshold',90)
 
         self._train_saver = LmdbSaver(_train_lmdb_path,cache_capacity)
         self._val_saver = LmdbSaver(_val_lmdb_path,cache_capacity)
         self._show_bin = kwargs.pop('show_bin',1000)
         self._val_count = 0
+        self._train_count = 0
 
 
         semantic_segmentation = kwargs.pop('semantic_segmentation',False)
@@ -186,8 +191,8 @@ class LMDBWriter(PoseWriter):
             rgb_data = annotators_data[self.RGB_ANNOT_NAME]["data"]
 
 
-            if not is_ann_valid(self._frame_data, truncation_ratio=.5, visibility_ratio=.65,rotate_threshold=90):
-                return 
+            if not is_ann_valid(self._frame_data, truncation_ratio=self._truncation_ratio, visibility_ratio=self._visibility_ratio,rotate_threshold=self._rotate_threshold):
+                continue 
             add_cuboid_27(self._frame_data)
             add_vfov(self._frame_data)
             img_bin = img_arr_to_bytes(rgb_data)
@@ -239,13 +244,14 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
-            if self._val_count<30 and random.uniform(0,1)<0.1:
+            if self._val_count<30 and random.uniform(0,1)<0:
                 self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
                 self._val_count += 1
             else:
 
-                self._train_saver.put(str(self._frame_id).zfill(10).encode('utf8'),pickle_bytes)
-                self._frame_id += 1
+                self._train_saver.put(str(self._train_count).zfill(10).encode('utf8'),pickle_bytes)
+                self._train_count += 1
+            
 
 
 
@@ -261,12 +267,13 @@ class LMDBWriter(PoseWriter):
                     
                     img_ori_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'.jpg')
                     img_draw_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_overlay.jpg')
-                    pil_img = PIL.Image.fromarray(rgb_data)
+                    bgr_data = cv2.cvtColor(rgb_data,cv2.COLOR_RGB2BGR)
+                    pil_img = PIL.Image.fromarray(bgr_data)
                     draw = PIL.ImageDraw.Draw(pil_img)
 
                     keypoints = self._frame_data['objects'][0]['cuboid_keypoints_projected']
                     draw_projected_keypoints(draw,keypoints)
-                    cv2imwrite(img_ori_path,rgb_data)
+                    cv2imwrite(img_ori_path,bgr_data)
                     cv2imwrite(img_draw_path,np.array(pil_img))
 
                     # data_dict['camera_view_matrix'] = self._frame_data['camera_data']['camera_view_matrix']
@@ -283,7 +290,11 @@ class LMDBWriter(PoseWriter):
                     save_json(img_ori_path[:-4]+'.json',data_dict)
                 except:
                     traceback.print_exc()
-
+            
+            
+            self._frame_id += 1
+            
+            
             init_config_file_path = os.path.join(self._output_dir,'config.json')
 
             label = self._frame_data['objects'][0]['label']

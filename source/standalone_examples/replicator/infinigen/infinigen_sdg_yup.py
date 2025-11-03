@@ -587,7 +587,7 @@ def run_sdg(config):
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,
-            intensity_range=(5000, 12000),
+            intensity_range=(5000, 8000),
             color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
         )
 
