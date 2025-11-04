@@ -913,8 +913,6 @@ def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim):
     z_location = random.uniform(target_asset_center[2]-z_delta, target_asset_center[2]+z_delta)
     y_location = target_asset_min[1] - table_size[1]/2
 
-
-
     table_center_target_location = (x_location, y_location, z_location)
 
 
@@ -922,9 +920,6 @@ def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim):
 
     dinning_room_xform = plain_prim.GetParent()
 
-    # stage = omni.usd.get_context().get_stage()
-    # dinning_room_xform_path = Sdf.Path('/Environment')
-    # dinning_room_xform = stage.GetPrimAtPath(dinning_room_xform_path)
     
     dinning_room_ori_location = dinning_room_xform.GetAttribute("xformOp:translate").Get()
     dinning_room_xform.GetAttribute("xformOp:translate").Set(dinning_room_ori_location+target_origin_delta)

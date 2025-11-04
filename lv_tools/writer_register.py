@@ -5,12 +5,11 @@ import random
 import traceback
 import cv2
 
-from jwt import InvalidTokenError
 import numpy as np
 from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov
 from lv_tools.cores.img_io import cv2imwrite
 from lv_tools.cores.json_io import save_json
-from omni.replicator.core import WriterRegistry
+
 from omni.replicator.core.writers import Writer
 from omni.replicator.core.annotators import AnnotatorRegistry
 from omni.replicator.core.writers_default import BasicWriter
@@ -48,58 +47,49 @@ def img_arr_to_bytes(img_arr:np.ndarray):
     img_bin = f.getvalue()
     return img_bin
 
-class BasicDataCollector(BasicWriter):
-    def write(self,data:dict):
-        print('B'*20)
-        pprint(data)
-
-
-class PoseDataCollector(PoseWriter):
-    def write(self,data:dict):
-        print('P'*20)
-        pprint(data)
 
 class LMDBWriter(PoseWriter):
     BOUNDING_BOX_2D = 'bounding_box_2d_tight_fast'
     SEMANTIC_SEGMENTATION = 'semantic_segmentation'
 
 
-
-
-
-    def __init__(self,cache_capacity:int=10,*args,**kwargs):
-        # rgb = kwargs.pop('rgb',False)
+    def __init__(self,cache_capacity:int=10,
+                 truncation_ratio:float=.5,
+                 visibility_ratio:float=.5,
+                 rotate_threshold:float=90,
+                 show_bin:int=1000,
+                 *args,**kwargs):
         self._output_dir = kwargs.get('output_dir','')
         _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_train_lmdb'
         _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_val_lmdb'
-        self._truncation_ratio = kwargs.pop('truncation_ratio',.5)
-        self._visibility_ratio = kwargs.pop('visibility_ratio',.65)
-        self._rotate_threshold = kwargs.pop('rotate_threshold',90)
+        self._truncation_ratio = truncation_ratio
+        self._visibility_ratio = visibility_ratio
+        self._rotate_threshold = rotate_threshold
 
         self._train_saver = LmdbSaver(_train_lmdb_path,cache_capacity)
         self._val_saver = LmdbSaver(_val_lmdb_path,cache_capacity)
-        self._show_bin = kwargs.pop('show_bin',1000)
+        self._show_bin = show_bin
         self._val_count = 0
         self._train_count = 0
 
 
-        semantic_segmentation = kwargs.pop('semantic_segmentation',False)
-        bounding_box_2d_tight = kwargs.pop('bounding_box_2d_tight',False)
+        # semantic_segmentation = kwargs.pop('semantic_segmentation',False)
+        # bounding_box_2d_tight = kwargs.pop('bounding_box_2d_tight',False)
 
-        self.colorize_semantic_segmentation = kwargs.pop('colorize_semantic_segmentation',True)
+        # self.colorize_semantic_segmentation = kwargs.pop('colorize_semantic_segmentation',True)
 
         super().__init__(*args,**kwargs)
 
-        if bounding_box_2d_tight:
-            self.annotators.append(self.BOUNDING_BOX_2D)
+        # if bounding_box_2d_tight:
+        self.annotators.append(self.BOUNDING_BOX_2D)
         
         # Semantic Segmentation
-        if semantic_segmentation:
-            self.annotators.append(
-                AnnotatorRegistry.get_annotator(
-                    self.SEMANTIC_SEGMENTATION, init_params={"colorize": self.colorize_semantic_segmentation}
-                )
+        # if semantic_segmentation:
+        self.annotators.append(
+            AnnotatorRegistry.get_annotator(
+                self.SEMANTIC_SEGMENTATION, init_params={"colorize": False}
             )
+        )
 
     def _get_init_info(self,label:str,points_27:list,scale:float=1):
         init_info = {
@@ -314,56 +304,5 @@ class LMDBWriter(PoseWriter):
                 
 
 
-
-
-
-WriterRegistry.register(BasicDataCollector)
-(
-    WriterRegistry._default_writers.append("BasicDataCollector")
-    if "BasicDataCollector" not in WriterRegistry._default_writers
-    else None
-)
-
-WriterRegistry.register(PoseDataCollector)
-(
-    WriterRegistry._default_writers.append("PoseDataCollector")
-    if "PoseDataCollector" not in WriterRegistry._default_writers
-    else None)
-
-
-WriterRegistry.register(LMDBWriter)
-(
-    WriterRegistry._default_writers.append("LMDBWriter")
-    if "LMDBWriter" not in WriterRegistry._default_writers
-    else None)
-
-
-
-
-# PoseWriter
-# WriterRegistry.register(PoseWriter)
-# (
-#     WriterRegistry._default_writers.append("PoseWriter")
-#     if "PoseWriter" not in WriterRegistry._default_writers
-#     else None
-# )
-
-
-'''
-
-from omni.replicator.core import WriterRegistry
-from isaacsim.replicator.writers import PoseWriter
-
-# PoseWriter
-WriterRegistry.register(PoseWriter)
-(
-    WriterRegistry._default_writers.append("PoseWriter")
-    if "PoseWriter" not in WriterRegistry._default_writers
-    else None
-)
-
-
-
-'''
 
 

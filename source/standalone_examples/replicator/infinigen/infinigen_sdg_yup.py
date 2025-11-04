@@ -18,16 +18,13 @@
 
 
 import argparse
-import itertools
 import json
+import math
 import os
 from pathlib import Path
-import string
 import sys
-from numpy.core import numerictypes
 import yaml
 from isaacsim import SimulationApp
-import traceback
 
 
 
@@ -84,13 +81,22 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.utils.semantics import get_labels
 from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
-
+from omni.replicator.core import WriterRegistry
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
-from lv_tools.material_change import bind_material_to_prim_randomly, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
-from lv_tools.material_change import random_gprim_color
-from lv_tools.cores.json_io import load_json_to_dict
-import lv_tools.writer_register
+from lv_tools.material_change import bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
+
+from lv_tools.writer_register import LMDBWriter
+
+
+WriterRegistry.register(LMDBWriter)
+(
+    WriterRegistry._default_writers.append("LMDBWriter")
+    if "LMDBWriter" not in WriterRegistry._default_writers
+    else None)
+
+
+
 def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage)->list[UsdShade.Material]:
 
     '''
@@ -322,48 +328,30 @@ def run_sdg(config):
     capture_counter = 0
     env_count = 0
 
-    env_rand_times = total_captures//((capture_config['num_floating_captures_per_env']+capture_config['num_dropped_captures_per_env']))
+    env_change_times = total_captures//((capture_config['num_floating_captures_per_env']+capture_config['num_dropped_captures_per_env']))
+    shape_distractors_max_num = shape_distractors_config.get('distractor_shapes_max_num',1)
+    mesh_distractors_max_num = mesh_distractors_config.get('distractor_meshes_max_num',1)
 
-    
-    
+    shape_increment_min = math.ceil(shape_distractors_max_num/env_change_times)
+    mesh_increment_min = math.ceil(mesh_distractors_max_num/env_change_times)
+
+    shape_distractors_config['num'] = shape_increment = max(shape_increment_min,shape_distractors_config.get('num',1))
+    mesh_distractors_config['num'] = mesh_increment = max(mesh_increment_min,mesh_distractors_config.get('num',1))
+
+
+
     while capture_counter < total_captures:
         # Load the next environment
         env_url = next(env_cycle)
 
-        # 指定USD文件路径和期望在舞台中的根路径（Prim Path)
-
-        # ⭐材质颜色的随机化⭐
-        # # # # todo material and color randomizer
-        # for target_asset in target_assets:
-        #     asset_prim_path = str(target_asset.GetPath())
-        #     try:
-        #         rep_items = rep.get.shader(asset_prim_path)
-        #         color_dis = rep.distribution.uniform((0.2,0.2,0.2),(1,1,1))
-
-        #         mat_low_value = random.uniform(0.7,0.89)
-        #         rough_low_value = random.uniform(0.2,0.9)
-
-        #         metallic_dis = rep.distribution.uniform((mat_low_value,),(mat_low_value+0.1,))
-        #         roughness_dis = rep.distribution.uniform((rough_low_value,),(rough_low_value+0.1,))
-
-
-        #         with rep_items:
-        #             rep.modify.attribute('inputs:base_color_factor',color_dis)
-        #             rep.modify.attribute('inputs:metallic_factor',metallic_dis)
-        #             rep.modify.attribute('inputs:roughness_factor',roughness_dis)
-
-        #     except:
-        #         pass
-
-
-        if env_count%(env_rand_times//(shape_distractors_config.get('distractor_shapes_max_num')/shape_distractors_config.get('num',1)-1))==0:
+        if env_count%math.ceil(env_change_times/shape_increment)==0:
 
             floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
             print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
             print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
             shape_distractors += floating_shapes + falling_shapes
 
-        if env_count%(env_rand_times//(mesh_distractors_config.get('distractor_meshes_max_num')/mesh_distractors_config.get('num',1)-1))==0:
+        if env_count%math.ceil(env_change_times/mesh_increment)==0:
             floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
         
             print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
@@ -435,19 +423,11 @@ def run_sdg(config):
             camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
             print(f"相机位置:{camera_loc}")
             set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
-        
-        # ⭐随机化位置，旋转，缩放⭐
-        # infinigen_utils.randomize_poses(
-        #     target_assets,
-        #     location_range=(0,0,0,0,0,0),
-        #     rotation_range=(0, 0),
-        #     scale_range=(1, 1),
-        # )
 
 
         for asset_to_adapt in target_assets:
             infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
-            target_rezise_ritio = infinigen_utils.asset_size_adaptive(asset_to_adapt)
+            infinigen_utils.asset_size_adaptive(asset_to_adapt)
 
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
@@ -485,20 +465,14 @@ def run_sdg(config):
 
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range((-1.5, -0.1, -1.5, 1.5, 0.8, 1.5), working_area_loc_abs)
+        lights_loc_range = infinigen_utils.offset_range(capture_config.get('lights_offset_range',(-1.5, -0.1, -1.5, 1.5, 0.8, 1.5)), working_area_loc_abs)
         infinigen_utils.randomize_lights(
             scene_lights,
             location_range=lights_loc_range,
-            intensity_range=(5000, 8000),
-            color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
+            intensity_range=capture_config.get('lights_intensity_range',(4000, 6000)),
+            color_range=capture_config.get('lights_color_range',(0.1, 0.1, 0.1, 0.9, 0.9, 0.9)),
         )
 
-        # infinigen_utils.randomize_lights(
-        #     scene_lights,
-        #     location_range=lights_loc_range,
-        #     intensity_range=(180, 250),
-        #     color_range=(0.1, 0.1, 0.1, 0.9, 0.9, 0.9),
-        # )
 
         print(f"\tRandomizing dome lights")
         rep.utils.send_og_event(event_name="randomize_dome_lights")
@@ -510,11 +484,7 @@ def run_sdg(config):
         # # 先用一些仿真帧稳定落位/碰撞
         print(f"\tFixing collisions through physics simulation")
         simulation_app.update()
-        infinigen_utils.run_simulation(num_frames=20, render=True)
-
-
-        
-        
+        infinigen_utils.run_simulation(num_frames=20, render=True)        
         
         # Check if the render products need to be enabled for the capture
         if disable_render_products:
@@ -635,14 +605,6 @@ def run_sdg(config):
         from isaacsim.core.utils.semantics import get_labels
         label = get_labels(cur_asset)
         print(label)
-        
-    
-    # target_rezise_ritio
-
-    # init_config_file_path = os.path.join(writers_config['kwargs']['output_dir'],'config.json')
-    # if os.path.exists(init_config_file_path):
-    #     jd = load_json_to_dict(init_config_file_path)
-    #     jd
 
 
     # Detach the writers

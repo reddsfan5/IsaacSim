@@ -102,7 +102,8 @@ class LmdbLoader:
 
     def __iter__(self):
         return iter(self.txn.cursor())
-
+    def iter_keys(self):
+        return iter(self.txn.cursor().iternext(keys=True,values=False))
 
 class JsonLLoader:
     def __init__(self, jsonl_path: Union[Path, str]):
@@ -136,6 +137,10 @@ class JsonLLoader:
     def __getitem__(self, index: int):
         jsonl = self.json_lines[index].strip()
         return json.loads(jsonl)
+    
+    
+        
+    
 
 
 class LmdbJsonLLoader(ImgArrayJDLoader):
@@ -378,14 +383,16 @@ if __name__ == '__main__':
 
     import pickle
     
-    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1031_jj_with_base/_out_infinigen_posewriter_lv_1031_jj_with_base_train_lmdb')
+    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1103_jj_with_base_multi_focal_length/_out_infinigen_posewriter_lv_1103_jj_with_base_multi_focal_length_train_lmdb')
     print(len(lmdbloader))
+    for i in lmdbloader.iter_keys():
+        print(i)
 
-    for i in lmdbloader:
-        from matplotlib import pyplot as plt
-        print(i[0])
-        if i[0].decode()=='num-samples':
-            print(i[1].decode())
+    # for i in lmdbloader:
+    #     from matplotlib import pyplot as plt
+    #     print(i[0])
+    #     if i[0].decode()=='num-samples':
+    #         print(i[1].decode())
         # else:
         #     s = pickle.loads(i[1])
             
