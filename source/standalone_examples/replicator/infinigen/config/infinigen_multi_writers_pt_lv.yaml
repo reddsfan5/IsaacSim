@@ -23,17 +23,17 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 30
+  total_captures: 6
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 10
+  num_dropped_captures_per_env: 3
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 5
+  num_cameras: 10
   # Resolution of the captured frames
   resolution: [640, 480]
   
-  focal_lengths: [50] #[50] [50,35,28,24]
+  focal_lengths: [18] #[50] [50,35,28,24]
 
   # Disable render products throughout the pipeline, enable them only when capturing the frames
   disable_render_products: true
@@ -60,20 +60,14 @@ writers:
 
   - type: LMDBWriter
     kwargs:
-      output_dir: /data2/data/_out_infinigen_posewriter_lv_1104_jj_with_base_multi_focal_length
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1104_GD960_with_base_focal_length_test
       cache_capacity: 1000
       format: null # dope ; centerpose
-      #use_subfolders: false
-      #write_debug_images: false
       skip_empty_frames: true
       truncation_ratio: 0.5
-      visibility_ratio: 0.7
+      visibility_ratio: 0.75
       rotate_threshold: 360
       show_bin: 1
-
-      # semantic_segmentation: true
-      # colorize_semantic_segmentation: false
-      # bounding_box_2d_tight: true
 
   # - type: BasicWriter
   #   kwargs:
@@ -128,39 +122,39 @@ labeled_assets:
     #   gravity_disabled_chance: 0.25
 
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
-      label: airship
-      num: 0
-      gravity_disabled_chance: 0
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
+    #   label: airship
+    #   num: 0
+    #   gravity_disabled_chance: 0
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
-      label: jj
-      num: 1
-      gravity_disabled_chance: 0
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
+    #   label: jj
+    #   num: 0
+    #   gravity_disabled_chance: 0
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
-      label: jj
-      num: 0
-      gravity_disabled_chance: 0
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
+    #   label: jj
+    #   num: 0
+    #   gravity_disabled_chance: 0
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk2.usd
-      label: disk
-      num: 0
-      gravity_disabled_chance: 0
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk2.usd
+    #   label: disk
+    #   num: 0
+    #   gravity_disabled_chance: 0
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tanke/TanKe_3.usd
-      label: tanke
-      num: 0
-      gravity_disabled_chance: 0
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tanke/TanKe_3.usd
+    #   label: tanke
+    #   num: 0
+    #   gravity_disabled_chance: 0
 
-    - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
-      label: tuopan
-      num: 0
-      gravity_disabled_chance: 0
+    # - url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
+    #   label: tuopan
+    #   num: 0
+    #   gravity_disabled_chance: 0
     
     - url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
       label: GD960
-      num: 0
+      num: 1
       gravity_disabled_chance: 0
     
 
@@ -168,8 +162,8 @@ distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 2
-    distractor_shapes_max_num: 30
+    num: 0
+    distractor_shapes_max_num: 0
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.8,0.8]
       y: [0,0.5]
@@ -184,7 +178,7 @@ distractors:
   mesh_distractors:
     # Amount of mesh distractors to create
     num: 2
-    distractor_meshes_max_num: 30
+    distractor_meshes_max_num: 2
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.7,0.7]
@@ -195,20 +189,24 @@ distractors:
     gravity_disabled_chance: 0.25
     # List of folders and files to search to randomly choose from
     folders:
-      - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/
+      # - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/
       # - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Cones/
+      # - file:///data2/isaacsim/assets/isaacsim_assets/Assets/Isaac/5.0/Isaac/Props/
+      - file:///data2/isaacsim/assets/isaacsim_assets/Assets/Isaac/5.0/Isaac/Props/FFDFDSFSD
+
     files:
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_TrafficCone.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_WetFloorSign.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Book_03.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Book_34.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_BookOpen_01.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Briefcase.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Extinguisher.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBag_01a.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBox_01g.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_TrafficCone.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_WetFloorSign.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Book_03.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Book_34.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_BookOpen_01.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Briefcase.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Extinguisher.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBag_01a.usd
+      # - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBox_01g.usd
+      - file:///data2/isaacsim/assets/isaacsim_assets/Assets/Isaac/5.0/Isaac/Props/PackingTable/props/sm_whitecorrugatedbox_b/sm_whitecorrugatedbox_b35_brown_01.usd
 
 
 materials_control: 
@@ -221,7 +219,7 @@ materials_control:
     materials_root: /pbr_materials
     # pbr_prob: 0.5
     color: [0,1]
-    num: 50
+    num: 30
     metallic_constant: [0.1,0.99]
     reflection_roughness: [0.01,1]
     texture_scale: [.1,2]
@@ -233,5 +231,5 @@ materials_control:
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: false
-headless: true
+debug_mode: true
+headless: false

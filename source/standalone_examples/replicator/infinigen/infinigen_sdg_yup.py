@@ -344,14 +344,14 @@ def run_sdg(config):
         # Load the next environment
         env_url = next(env_cycle)
 
-        if env_count%math.ceil(env_change_times/shape_increment)==0:
+        if shape_increment!=0 and env_count%math.ceil(env_change_times/shape_increment)==0:
 
             floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
             print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
             print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
             shape_distractors += floating_shapes + falling_shapes
 
-        if env_count%math.ceil(env_change_times/mesh_increment)==0:
+        if mesh_increment!=0 and env_count%math.ceil(env_change_times/mesh_increment)==0:
             floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
         
             print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
@@ -403,14 +403,9 @@ def run_sdg(config):
         bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
         plane_prim = random.choice(plane_prims)
 
-        
-
-
-
+    
         # translate the env location to make the plane under target prim
         infinigen_utils.translate_env_under_target_asset(plane_prim,manual_falling_assets[0])
-
-
 
 
         # ⭐⭐我们的主体asset的位置⭐⭐
@@ -460,8 +455,6 @@ def run_sdg(config):
             scale_range=shape_dis_scale_range,
         )
         
-        
-
 
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
@@ -491,8 +484,6 @@ def run_sdg(config):
             for rp in render_products:
                 rp.hydra_texture.set_updates_enabled(True)
 
-            # todo
-            # enable_rp_and_warmup(render_products,warmup_updates,warmup_dummy_steps,rt_subframes,step_delta_time)
 
         # Check if the render mode needs to be switched to path tracing for the capture
         if use_path_tracing:
@@ -571,14 +562,7 @@ def run_sdg(config):
             
             simulation_app.update()
             capture_one_frame(rt_subframes,step_delta_time,pause_timeline=True,wait_after=wait_after_each_capture)
-            capture_counter += 1
-
-
-
-            # for cur_asset in target_assets:
-            #     from isaacsim.core.utils.semantics import get_labels
-            #     label = get_labels(cur_asset)['class'][0].lower()
-               
+            capture_counter += 1    
 
         # Check if the render products need to be disabled until the next capture
         if disable_render_products:

@@ -10,12 +10,12 @@ from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_
 from lv_tools.cores.img_io import cv2imwrite
 from lv_tools.cores.json_io import save_json
 
-from omni.replicator.core.writers import Writer
+# from omni.replicator.core.writers import Writer
 from omni.replicator.core.annotators import AnnotatorRegistry
-from omni.replicator.core.writers_default import BasicWriter
+# from omni.replicator.core.writers_default import BasicWriter
 from isaacsim.replicator.writers import PoseWriter
 from lv_tools.dataset_io.data_saver import LmdbSaver
-from pprint import pprint
+# from pprint import pprint
 import PIL
 import io
 
@@ -234,7 +234,7 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
-            if self._val_count<30 and random.uniform(0,1)<0.01:
+            if self._val_count<1000 and random.uniform(0,1)<0.1:
                 self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
                 self._val_count += 1
             else:
@@ -294,7 +294,7 @@ class LMDBWriter(PoseWriter):
                 init_info = self._get_init_info(label,points_27,scale)
 
                 
-                # placeholder for deploy: 我们的项目依赖这个配置
+                # placeholder for deploy: 我们的项目依赖vfov
                 init_info['vfov'] = round(self._frame_data['camera_data']['vfov'], 2)
 
             

@@ -574,7 +574,8 @@ def load_mesh_distractors(mesh_distractors_config: dict) -> tuple[list[Usd.Prim]
         num_meshes, mesh_urls, "/Distractors", mesh_gravity_disabled_chance
     )
     for prim in chain(floating_meshes, falling_meshes):
-        remove_labels(prim, include_descendants=True)
+        remove_old_labels(prim, include_descendants=True)
+        remove_new_labels(prim,include_descendants=True)
     return floating_meshes, falling_meshes
 
 
@@ -604,7 +605,8 @@ def create_auto_labeled_assets(
             print(f"[SDG-Infinigen] Failed to load mesh distractor reference {asset_url} with exception: {e}")
             continue
         add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
-        remove_labels(prim, include_descendants=True)
+        remove_old_labels(prim, include_descendants=True)
+        remove_new_labels(prim,include_descendants=True)
         add_labels(prim, labels=[label], instance_name="class")
         (floating_assets if disable_gravity else falling_assets).append(prim)
     return floating_assets, falling_assets
@@ -655,7 +657,8 @@ def create_labeled_assets(
         
         
         
-        remove_labels(prim, include_descendants=True)
+        remove_old_labels(prim, include_descendants=True)
+        remove_new_labels(prim,include_descendants=True)
         add_labels(prim, labels=[label], instance_name="class")
         (floating_assets if disable_gravity else falling_assets).append(prim)
     return floating_assets, falling_assets
@@ -937,7 +940,7 @@ def find_materials(stage:Usd.Stage, looks_root:Union[str,Sdf.Path])->list[UsdSha
     return mats
 
 
-def remove_labels(prim: Usd.Prim, include_descendants: bool = False) -> None:
+def remove_old_labels(prim: Usd.Prim, include_descendants: bool = False) -> None:
     """Removes semantic labels from a prim.
 
     Args:
@@ -950,6 +953,34 @@ def remove_labels(prim: Usd.Prim, include_descendants: bool = False) -> None:
             remove_all_semantics(p)
     else:
         remove_all_semantics(prim)
+
+def remove_new_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False) -> None:
+    """Removes semantic labels (UsdSemantics.LabelsAPI) from a prim.
+
+    Args:
+        prim (Usd.Prim): Prim to remove labels from.
+        instance_name (str | None, optional): Specific instance name to remove.
+                                              If None (default), removes *all* LabelsAPI instances.
+        include_descendants (bool, optional): Also traverse children and remove labels recursively. Defaults to False.
+    """
+
+    def remove_single_prim_labels(target_prim: Usd.Prim):
+        schemas_to_remove = []
+        for schema_name in target_prim.GetAppliedSchemas():
+            if schema_name.startswith("SemanticsLabelsAPI:") or schema_name.startswith("SemanticsAPI:"):
+                current_instance = schema_name.split(":", 1)[1]
+                if instance_name is None or current_instance == instance_name:
+                    schemas_to_remove.append(current_instance)
+
+        for inst_to_remove in schemas_to_remove:
+            target_prim.RemoveAPI(UsdSemantics.LabelsAPI, inst_to_remove)
+
+    if include_descendants:
+        for p in Usd.PrimRange(prim):
+            remove_single_prim_labels(p)
+    else:
+        remove_single_prim_labels(prim)
+
 
 
 def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float=0.1,target_value:float=0.35):
