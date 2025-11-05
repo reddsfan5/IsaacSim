@@ -5,10 +5,10 @@ import isaacsim.core.utils.prims as prims_utils
 import sys
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 from source.standalone_examples.replicator.infinigen.infinigen_sdg_utils import find_matching_prims
-root_path = '/World'
+root_path = '/Environment'
 
 table_prim = find_matching_prims(
-    match_strings=["ChairFactory_6746123__spawn_asset_672237_"], root_path=root_path, prim_type="Xform", first_match_only=True
+    match_strings=["TableDiningFactory_5756319__spawn_asset_664843__SPLIT_GLASS"], root_path=root_path, prim_type="Xform", first_match_only=True
 )
 print(table_prim)
 bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
@@ -23,7 +23,7 @@ table_max = table_world_bound_aligned_range.GetMax()
 
 cube_path = '/World/cube_for_table'
 air_cube_path = '/World/cube_for_airship'
-air_path = '/World/AM114_33/mesh'
+air_path = '/Assets/falling_GD960/mesh'
 
 
 stage = omni.usd.get_context().get_stage()
