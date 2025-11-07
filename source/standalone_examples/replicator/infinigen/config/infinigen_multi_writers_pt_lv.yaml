@@ -46,9 +46,9 @@ capture:
   # Distance between the camera and the target object
   camera_distance_to_target_range: [0.8, 2.8]
   # Number of scene lights to create in the working area
-  num_scene_lights: 12
+  num_scene_lights: 15
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
-  lights_intensity_range: [4200,5000] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
+  lights_intensity_range: [4200,4800] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
   lights_color_range: [0.1,0.1,0.1,1,1,1]
 
   
@@ -59,14 +59,14 @@ writers:
 
   - type: LMDBWriter
     kwargs:
-      output_dir: /data2/data/_out_infinigen_posewriter_lv_1105_tanke_focal_length_50
-      cache_capacity: 1000
+      output_dir: /data2/data/_out_infinigen_posewriter_lv_1107_tuopan_focal_length_50_v1
+      cache_capacity: 500
       format: null # dope ; centerpose
       skip_empty_frames: true
       truncation_ratio: 0.5
       visibility_ratio: 0.75
       rotate_threshold: 360
-      show_bin: 1000
+      show_bin: 500
 
 labeled_assets:
   # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
@@ -84,43 +84,47 @@ labeled_assets:
     regex_replace_pattern: "^\\d+_"
     regex_replace_repl: ""
   target_asset_for_reference:
-
-    - &airship
+    - &base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
-      label: airship
+      label: base_data
       num: 1
       gravity_disabled_chance: 0
 
+    - &airship
+      <<: *base_data
+      url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
+      label: airship
+
     - &jj-withbase
-      <<: *airship
+      <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
       label: jj
 
     - &jj-nobase
-      <<: *airship
+      <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
       label: jj
 
 
     - &disk
-      <<: *airship
+      <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk2.usd
       label: disk
 
 
     - &tanke
-      <<: *airship
+      <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tanke/TanKe_3.usd
       label: tanke
 
     - &tuopan
-      <<: *airship
+      <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
       label: tuopan
 
     
     - &gd960
-      <<: *airship
+      <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
       label: gd960
     
@@ -128,7 +132,7 @@ labeled_assets:
 
   # Manually labeled assets with specific labels and properties
   manual_label:
-    - *tanke
+    - *tuopan
 
   
 distractors:
@@ -136,11 +140,11 @@ distractors:
   shape_distractors:
     # Amount of shape distractors to create
     num: 2
-    distractor_shapes_max_num: 50
+    distractor_shapes_max_num: 30
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
-      x: [-0.8,0.8]
+      x: [-0.5,0.5]
       y: [0,0.5]
-      z: [-0.1,-1.2]
+      z: [-0.1,-0.7]
     scale_range: [0.02,0.055]
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
@@ -151,12 +155,12 @@ distractors:
   mesh_distractors:
     # Amount of mesh distractors to create
     num: 2
-    distractor_meshes_max_num: 50
+    distractor_meshes_max_num: 30
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
-      x: [-0.7,0.7]
+      x: [-0.5,0.5]
       y: [0,0.5]
-      z: [0.1,1.2]
+      z: [0.1,0.8]
     scale_range: [0.15,0.25]
 
     gravity_disabled_chance: 0.25
@@ -183,7 +187,7 @@ distractors:
 materials_control: 
   classic_materials:
 
-    usd_file_path: /home/ubuntu/lxd/usd_file/glb/general_Looks.usd
+    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_materials.usd
     scope_path: /general_looks
   
   pbr:

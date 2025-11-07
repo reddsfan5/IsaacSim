@@ -383,7 +383,7 @@ if __name__ == '__main__':
 
     import pickle
     
-    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1104_GD960_with_base_focal_length_v2/_out_infinigen_posewriter_lv_1104_GD960_with_base_focal_length_v2_train_lmdb')
+    lmdbloader = LmdbLoader('/data2/data/_out_infinigen_posewriter_lv_1105_tanke_focal_length_50_v2/_out_infinigen_posewriter_lv_1105_tanke_focal_length_50_v2_train_lmdb')
     print(len(lmdbloader))
     for i in lmdbloader.iter_keys():
         print(i)
