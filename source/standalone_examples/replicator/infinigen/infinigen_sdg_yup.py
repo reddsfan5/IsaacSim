@@ -217,21 +217,21 @@ def run_sdg(config):
     
     # ⭐加载自动标注和手动标注的资产⭐
     # Load target assets with auto-labeling (e.g. 002_banana -> banana)
-    auto_label_config = labeled_assets_config.get("auto_label", {})
-    auto_floating_assets, auto_falling_assets = infinigen_utils.load_auto_labeled_assets(auto_label_config)
-    print(f"[SDG-Infinigen] Loaded {len(auto_floating_assets)} floating auto-labeled assets")
-    print(f"[SDG-Infinigen] Loaded {len(auto_falling_assets)} falling auto-labeled assets")
+    # auto_label_config = labeled_assets_config.get("auto_label", {})
+    # auto_floating_assets, auto_falling_assets = infinigen_utils.load_auto_labeled_assets(auto_label_config)
+    # print(f"[SDG-Infinigen] Loaded {len(auto_floating_assets)} floating auto-labeled assets")
+    # print(f"[SDG-Infinigen] Loaded {len(auto_falling_assets)} falling auto-labeled assets")
 
     # Load target assets with manual labels
-    manual_label_config = labeled_assets_config.get("manual_label", [])
-    manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
-    print(f"[SDG-Infinigen] Loaded {len(manual_floating_assets)} floating manual-labeled assets")
-    print(f"[SDG-Infinigen] Loaded {len(manual_falling_assets)} falling manual-labeled assets")
+    # manual_label_config = labeled_assets_config.get("manual_label", [])
+    # manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
+    # print(f"[SDG-Infinigen] Loaded {len(manual_floating_assets)} floating manual-labeled assets")
+    # print(f"[SDG-Infinigen] Loaded {len(manual_falling_assets)} falling manual-labeled assets")
 
     
 
 
-    target_assets = auto_floating_assets + auto_falling_assets + manual_floating_assets + manual_falling_assets
+    # target_assets = auto_floating_assets + auto_falling_assets + manual_floating_assets + manual_falling_assets
             
 
     
@@ -317,7 +317,7 @@ def run_sdg(config):
     omni_pbr_materials = generate_pbr_materials(materials_control_config,stage)
     materials.extend(omni_pbr_materials)
 
-    bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=True)
+    # bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=True)
 
     # bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
 
@@ -325,9 +325,14 @@ def run_sdg(config):
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
     # Start the SDG loop
     env_cycle = cycle(env_urls)
+    
+    
     capture_counter = 0
+    
+    # Gradually increase the number of distractors
     env_count = 0
 
+    
     env_change_times = total_captures//((capture_config['num_floating_captures_per_env']+capture_config['num_dropped_captures_per_env']))
     shape_distractors_max_num = shape_distractors_config.get('distractor_shapes_max_num',1)
     mesh_distractors_max_num = mesh_distractors_config.get('distractor_meshes_max_num',1)
@@ -362,14 +367,24 @@ def run_sdg(config):
 
 
         infinigen_utils.remove_prim('/Assets',simulation_app)
-        manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
-        target_assets = manual_falling_assets
-
-
-
-        bind_materials_to_assets(
-            target_assets,materials,
-            is_maintain_material_structure=True,usd_materials_num=8)
+        
+        target_assets = []
+        
+        manual_label_config = labeled_assets_config.get("manual_label", [])
+        original_label_config = labeled_assets_config.get("original_label", [])
+        
+        
+        
+        if manual_label_config:
+            manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
+            target_assets.extend(manual_falling_assets)
+        if original_label_config:
+            original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
+            target_assets.extend(original_assets)
+        
+        # bind_materials_to_assets(
+        #     target_assets,materials,
+        #     is_maintain_material_structure=True,usd_materials_num=8)
 
 
         # Load the new environment
@@ -405,7 +420,7 @@ def run_sdg(config):
 
     
         # translate the env location to make the plane under target prim
-        infinigen_utils.translate_env_under_target_asset(plane_prim,manual_falling_assets[0])
+        infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0])
 
 
         # ⭐⭐我们的主体asset的位置⭐⭐

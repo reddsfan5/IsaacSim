@@ -52,6 +52,7 @@ writers:
       semantic_segmentation: true
       colorize_semantic_segmentation: true
       use_common_output_dir: false
+  
   - type: DataVisualizationWriter
     kwargs:
       output_dir: "_out_infinigen_dataviswriter_pt"

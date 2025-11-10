@@ -663,12 +663,38 @@ def create_labeled_assets(
         (floating_assets if disable_gravity else falling_assets).append(prim)
     return floating_assets, falling_assets
 
+def create_original_assets(
+    num_assets: int, asset_url: str, label: str, root_path: str, gravity_disabled_chance: float
+) -> list[Usd.Prim]:
+    """Create labeled assets with optional gravity settings, returning lists of floating and falling assets."""
+    stage = omni.usd.get_context().get_stage()
+    assets_root_path = get_assets_root_path()
+    asset_url = (
+        asset_url
+        if asset_url.startswith(("omniverse://", "http://", "https://", "file://"))
+        else assets_root_path + asset_url
+    )
+    falling_assets = []
+    for _ in range(num_assets):
+        disable_gravity = random.random() < gravity_disabled_chance
+        name_prefix = "falling_"
+        prim_path = omni.usd.get_stage_next_free_path(stage, f"{root_path}/{name_prefix}{label}", False)
+
+        prim = add_reference_to_stage(usd_path=asset_url, prim_path=prim_path)
+        add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
+        
+
+        falling_assets.append(prim)
+    return falling_assets
 
 def load_manual_labeled_assets(manual_labeled_assets_config: list[dict]) -> tuple[list[Usd.Prim], list[Usd.Prim]]:
     """Load manually labeled assets based on configuration, returning lists of floating and falling assets."""
     labeled_floating_assets = []
     labeled_falling_assets = []
     for labeled_asset_config in manual_labeled_assets_config:
+        if not labeled_asset_config:
+            continue
+
         asset_url = labeled_asset_config.get("url", "")
         asset_label = labeled_asset_config.get("label", "")
         num_assets = labeled_asset_config.get("num", 0)
@@ -683,6 +709,30 @@ def load_manual_labeled_assets(manual_labeled_assets_config: list[dict]) -> tupl
         labeled_floating_assets.extend(floating_assets)
         labeled_falling_assets.extend(falling_assets)
     return labeled_floating_assets, labeled_falling_assets
+
+
+def load_original_labeled_assets(original_labeled_assets_config: list[dict]) -> list[Usd.Prim]:
+    """Load manually labeled assets based on configuration, returning lists of floating and falling assets."""
+
+    labeled_assets = []
+    for labeled_asset_config in original_labeled_assets_config:
+        if not labeled_asset_config:
+            continue
+        asset_url = labeled_asset_config.get("url", "")
+        asset_label = labeled_asset_config.get("label", "")
+        num_assets = labeled_asset_config.get("num", 0)
+        gravity_disabled_chance = labeled_asset_config.get("gravity_disabled_chance", 0.0)
+        falling_assets = create_original_assets(
+            num_assets,
+            asset_url,
+            asset_label,
+            "/Assets",
+            gravity_disabled_chance,
+        )
+
+        labeled_assets.extend(falling_assets)
+    return labeled_assets
+
 
 
 def resolve_scale_issues_with_metrics_assembler() -> None:

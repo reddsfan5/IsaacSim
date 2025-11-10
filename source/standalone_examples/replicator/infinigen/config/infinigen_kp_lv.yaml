@@ -23,15 +23,15 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 100
+  total_captures: 30
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 50
+  num_dropped_captures_per_env: 10
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 10
+  num_cameras: 5
   # Resolution of the captured frames
-  resolution: [640, 480]
+  resolution: [1080, 720]
   
   focal_lengths: [50] #[50] [50,35,28,24]
 
@@ -42,9 +42,9 @@ capture:
   # Use PathTracing renderer instead of RayTracedLighting when capturing the frames
   path_tracing: false
   # Offset to avoid the images always being in the image center
-  camera_look_at_target_offset: 0.05
+  camera_look_at_target_offset: 0.2
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.8, 2.8]
+  camera_distance_to_target_range: [0.8, 1.8]
   # Number of scene lights to create in the working area
   num_scene_lights: 15
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
@@ -52,37 +52,29 @@ capture:
   lights_color_range: [0.1,0.1,0.1,1,1,1]
 
   
-  polar_angle_range: [80,88]
+  polar_angle_range: [0,2]
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
 
+  - type: BasicWriter
+    kwargs:
+      output_dir: /data2/data/basic_kp
+      rgb: true
+      semantic_segmentation: true
+      colorize_semantic_segmentation: true
+      use_common_output_dir: false
   # - type: LMDBWriter
   #   kwargs:
-  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1110_zsj_focal_length_50_v1
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1107_tuopan_focal_length_50_v1
   #     cache_capacity: 500
   #     format: null # dope ; centerpose
   #     skip_empty_frames: true
   #     truncation_ratio: 0.5
   #     visibility_ratio: 0.75
   #     rotate_threshold: 360
-  #     show_bin: 1
-  
-  # - type: BasicWriter
-  #   kwargs:
-  #     output_dir: /data2/data/basic_kp
-  #     rgb: true
-  #     semantic_segmentation: true
-  #     colorize_semantic_segmentation: true
-  #     use_common_output_dir: false
+  #     show_bin: 500
 
-  - type: PoseWriter
-    kwargs:
-      output_dir: "/data2/data/_out_infinigen_posewriter_lv_1110_jj_v1"
-      format: null # dope ; centerpose
-      use_subfolders: true
-      write_debug_images: true
-      skip_empty_frames: true
 
 
 labeled_assets:
@@ -144,22 +136,16 @@ labeled_assets:
       <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
       label: gd960
-
-    - &zsj
-      <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/ZSJ.usd
-      label: zsj
     
     - &disk_kp
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/keypoint_det/_29_disk2_2.usd
-      label: disk_kp      
-    
+      url: file:///home/ubuntu/lxd/usd_file/glb/keypoint_det/_29_disk2_with_10_glass_kps.usd
+      label: disk_kp    
 
 
   # Manually labeled assets with specific labels and properties
   manual_label:
-    - 
+    # - *zsj
 
   original_label:
     - *disk_kp
@@ -169,8 +155,8 @@ distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 2
-    distractor_shapes_max_num: 30
+    num: 0
+    distractor_shapes_max_num: 0
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
@@ -184,8 +170,8 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 2
-    distractor_meshes_max_num: 30
+    num: 0
+    distractor_meshes_max_num: 0
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
