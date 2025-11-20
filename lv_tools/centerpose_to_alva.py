@@ -386,7 +386,16 @@ def bbox_2d_convert(bbox_2d_void:np.void)->list[list[float]]:
     x0,y0,x1,y1 = bbox_2d_void[0][['x_min','y_min','x_max','y_max']]
     return [[x0,y0],[x1,y1]]
 
+def calculate_kps_based_on_world_file(camera_jd:dict,kps_jd: dict):
+    screen_points = {}
+    view_matrix = np.array(camera_jd["camera_view_matrix"], dtype=float)
+    proj_matrix = np.array(camera_jd["camera_projection_matrix"], dtype=float)
+    screen_size = camera_jd["resolution"]
 
+    for k,v in kps_jd.items():
+        screen_point = project_world_point_to_screen(v, view_matrix, proj_matrix, screen_size)
+        screen_points[k] = screen_point
+    return screen_points
 
 
 if __name__ == '__main__':

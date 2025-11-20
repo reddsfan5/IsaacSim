@@ -84,9 +84,9 @@ from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 
-from lv_tools.material_change import bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
+from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
-from lv_tools.writer_register import LMDBWriter
+from lv_tools.writer_register import LMDBWriter,KPSWriter
 
 
 WriterRegistry.register(LMDBWriter)
@@ -95,35 +95,51 @@ WriterRegistry.register(LMDBWriter)
     if "LMDBWriter" not in WriterRegistry._default_writers
     else None)
 
+WriterRegistry.register(KPSWriter)
+(
+    WriterRegistry._default_writers.append("KPSWriter")
+    if "KPSWriter" not in WriterRegistry._default_writers
+    else None)
 
-
-def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage)->list[UsdShade.Material]:
+def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map:dict)->list[UsdShade.Material]:
 
     '''
     耦合当前配置文件的业务逻辑函数
     
     '''
-
-    texture_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
-    metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
-    reflection_roughness = random.uniform(*materials_control_config['pbr']['reflection_roughness'])
-    scale = random.uniform(*materials_control_config['pbr']['texture_scale'])
+    texture_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_bg']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
     
-    translate = random.randint(*materials_control_config['pbr']['translate'])
-    # project_uvw = materials_control_config['pbr']['project_uvw']
-    project_uvw = random.choice([True, False])
-    omni_pbr_materials = []
 
+
+    omni_pbr_materials = []
     for _ in range(materials_control_config['pbr']['num']):
-        pbr_base_name = 'omni_pbr'
+        mat_name,material_cur = mat_map.choice()
+        
+        # texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
+        texture_path = material_cur.get('col')
+        normal_texture_path = material_cur.get('nrm')
+        roughness_texture_path = material_cur.get('rough')
+        metallic_texture_path = material_cur.get('refl')
+
+        project_uvw = random.choice([True, False])
+        pbr_base_name = f"omni_pbr_{mat_name.replace('-','_')}"
+        metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
+        reflection_roughness = random.uniform(*materials_control_config['pbr']['reflection_roughness'])
+        scale = random.uniform(*materials_control_config['pbr']['texture_scale'])
+    
+        translate = random.randint(*materials_control_config['pbr']['translate'])
+        
         pbr_material_prim_path = omni.usd.get_stage_next_free_path(stage,os.path.join(materials_control_config['pbr']['materials_root'],pbr_base_name),False)
         omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
-                                                    str(random.choice(texture_paths)),
+                                                    texture_path,
                                                     metallic_constant,
                                                     reflection_roughness,
                                                     scale,
                                                     translate,
-                                                    project_uvw)
+                                                    project_uvw,
+                                                    normalmap_texture_path=normal_texture_path,
+                                                    metallic_texture_path=metallic_texture_path,
+                                                    reflectionroughness_texture_path=roughness_texture_path)
         omni_pbr_materials.append(omni_pbr_material)
     return omni_pbr_materials
 
@@ -155,6 +171,9 @@ def run_sdg(config):
     # ⭐创建stage，并设置向上轴⭐
     # Create a new stage
     print(f"[SDG-Infinigen] Creating a new stage")
+
+
+    mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
 
     stage = omni.usd.get_context().get_stage()
     # Set stage Up axis
@@ -213,44 +232,20 @@ def run_sdg(config):
 
     
     
-    
-    
-    # ⭐加载自动标注和手动标注的资产⭐
-    # Load target assets with auto-labeling (e.g. 002_banana -> banana)
-    # auto_label_config = labeled_assets_config.get("auto_label", {})
-    # auto_floating_assets, auto_falling_assets = infinigen_utils.load_auto_labeled_assets(auto_label_config)
-    # print(f"[SDG-Infinigen] Loaded {len(auto_floating_assets)} floating auto-labeled assets")
-    # print(f"[SDG-Infinigen] Loaded {len(auto_falling_assets)} falling auto-labeled assets")
-
-    # Load target assets with manual labels
-    # manual_label_config = labeled_assets_config.get("manual_label", [])
-    # manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
-    # print(f"[SDG-Infinigen] Loaded {len(manual_floating_assets)} floating manual-labeled assets")
-    # print(f"[SDG-Infinigen] Loaded {len(manual_falling_assets)} falling manual-labeled assets")
-
-    
-
-
-    # target_assets = auto_floating_assets + auto_falling_assets + manual_floating_assets + manual_falling_assets
-            
-
-    
     # ⭐加载干扰物⭐
     # Load the shape distractors
     shape_distractors_config = distractors_config.get("shape_distractors", {})
-    # floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
-    # print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
-    # print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
-    # shape_distractors = floating_shapes + falling_shapes
-    shape_distractors = []
+    floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
+    print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
+    print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
+    shape_distractors = floating_shapes + falling_shapes
     # Load the mesh distractors
     mesh_distractors_config = distractors_config.get("mesh_distractors", {})
-    # floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
+    floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
     
-    # print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
-    # print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
-    # mesh_distractors = floating_meshes + falling_meshes
-    mesh_distractors = []
+    print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
+    print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
+    mesh_distractors = floating_meshes + falling_meshes
 
 
 
@@ -314,12 +309,11 @@ def run_sdg(config):
     materials.extend(classic_materials)
 
 
-    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage)
+    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,mat_map=mat_map)
     materials.extend(omni_pbr_materials)
 
     # bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=True)
 
-    # bg_img_paths = [img_path for img_path in Path(materials_control_config['pbr']['texture_root']).rglob('*') if img_path.suffix.lower() in ['.png','.jpg']]
 
     
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
@@ -332,38 +326,10 @@ def run_sdg(config):
     # Gradually increase the number of distractors
     env_count = 0
 
-    
-    env_change_times = total_captures//((capture_config['num_floating_captures_per_env']+capture_config['num_dropped_captures_per_env']))
-    shape_distractors_max_num = shape_distractors_config.get('distractor_shapes_max_num',1)
-    mesh_distractors_max_num = mesh_distractors_config.get('distractor_meshes_max_num',1)
-
-    shape_increment_min = math.ceil(shape_distractors_max_num/env_change_times)
-    mesh_increment_min = math.ceil(mesh_distractors_max_num/env_change_times)
-
-    shape_distractors_config['num'] = shape_increment = max(shape_increment_min,shape_distractors_config.get('num',1))
-    mesh_distractors_config['num'] = mesh_increment = max(mesh_increment_min,mesh_distractors_config.get('num',1))
-
-
 
     while capture_counter < total_captures:
         # Load the next environment
         env_url = next(env_cycle)
-
-        if shape_increment!=0 and env_count%math.ceil(env_change_times/shape_increment)==0:
-
-            floating_shapes, falling_shapes = infinigen_utils.load_shape_distractors(shape_distractors_config)
-            print(f"[SDG-Infinigen] Loaded {len(floating_shapes)} floating shape distractors")
-            print(f"[SDG-Infinigen] Loaded {len(falling_shapes)} falling shape distractors")
-            shape_distractors += floating_shapes + falling_shapes
-
-        if mesh_increment!=0 and env_count%math.ceil(env_change_times/mesh_increment)==0:
-            floating_meshes, falling_meshes = infinigen_utils.load_mesh_distractors(mesh_distractors_config)
-        
-            print(f"[SDG-Infinigen] Loaded {len(floating_meshes)} floating mesh distractors")
-            print(f"[SDG-Infinigen] Loaded {len(falling_meshes)} falling mesh distractors")
-            mesh_distractors += floating_meshes + falling_meshes
-
-
 
 
         infinigen_utils.remove_prim('/Assets',simulation_app)
@@ -382,9 +348,9 @@ def run_sdg(config):
             original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
             target_assets.extend(original_assets)
         
-        # bind_materials_to_assets(
-        #     target_assets,materials,
-        #     is_maintain_material_structure=True,usd_materials_num=8)
+        bind_materials_to_assets(
+            target_assets,classic_materials,
+            is_maintain_material_structure=False,usd_materials_num=5)
 
 
         # Load the new environment
@@ -420,7 +386,7 @@ def run_sdg(config):
 
     
         # translate the env location to make the plane under target prim
-        infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0])
+        infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
 
 
         # ⭐⭐我们的主体asset的位置⭐⭐
@@ -470,7 +436,7 @@ def run_sdg(config):
             scale_range=shape_dis_scale_range,
         )
         
-
+        # simulation_app.update()
 
         print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
         lights_loc_range = infinigen_utils.offset_range(capture_config.get('lights_offset_range',(-1.5, -0.1, -1.5, 1.5, 0.8, 1.5)), working_area_loc_abs)
@@ -560,12 +526,14 @@ def run_sdg(config):
             distractors = stage.GetPrimAtPath('/Distractors')
 
             # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
-            bind_materials_to_prims_recursively(plane_prim,materials,is_mesh_bind_material=True)
+            bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
             bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
-
+            
+            if i%20 == 0:
+                infinigen_utils.random_visibility("/Distractors")
                 
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range']
+                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],camera_loc_yaw_range=capture_config['camera_loc_yaw_range']
             )
             print(
                 f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"

@@ -16,22 +16,23 @@ environments:
   # List of background environments (list of folders or files)
   folders:
     # - /Isaac/Samples/Replicator/Infinigen/dining_rooms
-    - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/dining_rooms
-    # - file:///home/ubuntu/lxd/lxd_code/infinigen/outputs/omniverse
+    - file:///data2/isaacsim/scene/dining_rooms
+    # - file:///data2/infinigen_indoor
   
   files: []
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 100
+  
+  total_captures: &total_captures 5000
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 50
+  num_dropped_captures_per_env: 60
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 10
+  num_cameras: 5
   # Resolution of the captured frames
-  resolution: [640, 480]
+  resolution: [640, 480] # [640,480]
   
   focal_lengths: [50] #[50] [50,35,28,24]
 
@@ -44,45 +45,47 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.05
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.8, 2.8]
+  camera_distance_to_target_range: [0.9, 2]
   # Number of scene lights to create in the working area
-  num_scene_lights: 15
+  num_scene_lights: 6
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
-  lights_intensity_range: [4200,4800] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
-  lights_color_range: [0.1,0.1,0.1,1,1,1]
+  lights_intensity_range: [2800,3600] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
+  lights_color_range: [0.6,0.6,0.6,1,1,1]
 
-  
-  polar_angle_range: [80,88]
+  camera_loc_yaw_range: [0,360]
+  polar_angle_range: [0,90]
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
 
-  # - type: LMDBWriter
-  #   kwargs:
-  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1110_zsj_focal_length_50_v1
-  #     cache_capacity: 500
-  #     format: null # dope ; centerpose
-  #     skip_empty_frames: true
-  #     truncation_ratio: 0.5
-  #     visibility_ratio: 0.75
-  #     rotate_threshold: 360
-  #     show_bin: 1
+  - type: LMDBWriter
+    kwargs:
+      output_dir: /data2/data/posewriter_zsj
+      expect_data_num: 10000
+      show_bin: 5
+      cache_capacity: 500
+      format: null # dope ; centerpose
+      skip_empty_frames: true
+      truncation_ratio: 0.5
+      visibility_ratio: 0.75
+      rotate_threshold: 360
+      
   
   # - type: BasicWriter
   #   kwargs:
-  #     output_dir: /data2/data/basic_kp
+  #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1111_disk_kp_v1_0
   #     rgb: true
   #     semantic_segmentation: true
   #     colorize_semantic_segmentation: true
   #     use_common_output_dir: false
 
-  - type: PoseWriter
-    kwargs:
-      output_dir: "/data2/data/_out_infinigen_posewriter_lv_1110_jj_v1"
-      format: null # dope ; centerpose
-      use_subfolders: true
-      write_debug_images: true
-      skip_empty_frames: true
+  # - type: PoseWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1111_disk_kp_v2_0
+  #     format: null # dope ; centerpose
+  #     use_subfolders: false
+  #     write_debug_images: false
+  #     skip_empty_frames: false
 
 
 labeled_assets:
@@ -94,87 +97,87 @@ labeled_assets:
     gravity_disabled_chance: 0.01
     # List of folders and files to search for the labeled assets
     folders:
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/Props/YCB/Axis_Aligned/
+      - file:///data2/isaacsim/assets/individual_assets/Props/YCB/Axis_Aligned/
     files:
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/Props/YCB/Axis_Aligned/036_wood_block.usd
+      - file:///data2/isaacsim/assets/individual_assets/Props/YCB/Axis_Aligned/036_wood_block.usd
     # Regex pattern to replace in the asset name (e.g. "002_banana" -> "banana")
     regex_replace_pattern: "^\\d+_"
     regex_replace_repl: ""
   target_asset_for_reference:
     - &base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
+      url: file:///data2/isaacsim/assets/glb/airship.usd
       label: base_data
       num: 1
       gravity_disabled_chance: 0
 
     - &airship
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/airship.usd
+      url: file:///data2/isaacsim/assets/glb/airship.usd
       label: airship
 
     - &jj-withbase
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2.usd
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd
       label: jj
 
     - &jj-nobase
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
-      label: jj
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2_no_base.usd
+      label: jj_nobase
 
 
     - &disk
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/converted/729-disk2.usd
+      url: file:///data2/isaacsim/assets/glb/converted/729-disk2.usd
       label: disk
 
 
     - &tanke
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tanke/TanKe_3.usd
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/tanke/TanKe_3.usd
       label: tanke
 
     - &tuopan
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
       label: tuopan
 
     
     - &gd960
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
+      url: file:///data2/isaacsim/assets/glb/converted/GD960-JJ-50HP.usd
       label: gd960
 
     - &zsj
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/ZSJ.usd
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/ZSJ.usd
       label: zsj
     
     - &disk_kp
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/keypoint_det/_29_disk2_2.usd
+      url: file:///data2/isaacsim/assets/glb/keypoint_det/_29_disk2_with_10_normal_kps.usd
       label: disk_kp      
     
 
 
   # Manually labeled assets with specific labels and properties
   manual_label:
-    - 
+    - *zsj
 
-  original_label:
-    - *disk_kp
+  # with original label
+  # original_label:
+  #   - *jj-withbase
 
   
 distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 2
-    distractor_shapes_max_num: 30
+    num: 30
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
-      z: [-0.1,-0.7]
+      z: [-0.15,-0.7]
     scale_range: [0.02,0.055]
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
@@ -184,13 +187,12 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 2
-    distractor_meshes_max_num: 30
+    num: 30
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
-      z: [0.1,0.8]
+      z: [0.15,0.8]
     scale_range: [0.15,0.25]
 
     gravity_disabled_chance: 0.25
@@ -201,17 +203,17 @@ distractors:
       # - file:///data2/isaacsim/assets/isaacsim_assets/Assets/Isaac/5.0/Isaac/Props/
 
     files:
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_TrafficCone.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Simple_Warehouse/Props/S_WetFloorSign.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Book_03.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Book_34.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_BookOpen_01.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Briefcase.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Office/Props/SM_Extinguisher.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBag_01a.usd
-      - file:///home/ubuntu/lxd/usd_file/infinigen_assets/environment/Hospital/Props/SM_MedicalBox_01g.usd
+      - file:///data2/isaacsim/scene/environment/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
+      - file:///data2/isaacsim/scene/environment/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
+      - file:///data2/isaacsim/scene/environment/Simple_Warehouse/Props/S_TrafficCone.usd
+      - file:///data2/isaacsim/scene/environment/Simple_Warehouse/Props/S_WetFloorSign.usd
+      - file:///data2/isaacsim/scene/environment/Office/Props/SM_Book_03.usd
+      - file:///data2/isaacsim/scene/environment/Office/Props/SM_Book_34.usd
+      - file:///data2/isaacsim/scene/environment/Office/Props/SM_BookOpen_01.usd
+      - file:///data2/isaacsim/scene/environment/Office/Props/SM_Briefcase.usd
+      - file:///data2/isaacsim/scene/environment/Office/Props/SM_Extinguisher.usd
+      - file:///data2/isaacsim/scene/environment/Hospital/Props/SM_MedicalBag_01a.usd
+      - file:///data2/isaacsim/scene/environment/Hospital/Props/SM_MedicalBox_01g.usd
 
 
 materials_control: 
@@ -224,13 +226,13 @@ materials_control:
     materials_root: /pbr_materials
     # pbr_prob: 0.5
     color: [0,1]
-    num: 30
+    num: 300
     metallic_constant: [0.1,0.99]
     reflection_roughness: [0.01,1]
-    texture_scale: [.1,2]
-    translate: [1,500]
-    texture_root: /home/ubuntu/lxd/usd_file/imgs
-    # project_uvw: false
+    texture_scale: [.8,1.5]
+    translate: [1,50]
+    texture_bg: /data2/isaacsim/bg_img/pure_bg
+    texture_poliigon: /data2/isaacsim/materials/pbr_texture
 
 
 

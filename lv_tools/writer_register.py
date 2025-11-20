@@ -4,12 +4,15 @@ import pickle
 import random
 import traceback
 import cv2
+import time
+from datetime import datetime
 
 import numpy as np
-from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov
+from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov,calculate_kps_based_on_world_file
 from lv_tools.cores.img_io import cv2imwrite
-from lv_tools.cores.json_io import save_json
-
+from lv_tools.cores.json_io import load_json_to_dict, save_json
+from lv_tools.data_parsing.labelme_json_constructor import construct_labelme_jd,construct_one_shape
+from omni.replicator.core.scripts.functional import write_image, write_json
 # from omni.replicator.core.writers import Writer
 from omni.replicator.core.annotators import AnnotatorRegistry
 # from omni.replicator.core.writers_default import BasicWriter
@@ -58,10 +61,12 @@ class LMDBWriter(PoseWriter):
                  visibility_ratio:float=.5,
                  rotate_threshold:float=90,
                  show_bin:int=1000,
+                 expect_data_num:int=10000,
                  *args,**kwargs):
-        self._output_dir = kwargs.get('output_dir','')
-        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_train_lmdb'
-        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_val_lmdb'
+        self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
+        num_str = f'{round(expect_data_num/10000)}W' if int(expect_data_num/10000)>=1 else str(expect_data_num)
+        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_train_lmdb'
+        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_val_lmdb'
         self._truncation_ratio = truncation_ratio
         self._visibility_ratio = visibility_ratio
         self._rotate_threshold = rotate_threshold
@@ -90,6 +95,10 @@ class LMDBWriter(PoseWriter):
                 self.SEMANTIC_SEGMENTATION, init_params={"colorize": False}
             )
         )
+
+    def _get_time_str(self):
+        return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H')
+
 
     def _get_init_info(self,label:str,points_27:list,scale:float=1):
         init_info = {
@@ -303,6 +312,100 @@ class LMDBWriter(PoseWriter):
 
                 
 
+class KPSWriter(PoseWriter):
+    def __init__(self,world_frame_kps_file_path,prifix,*args,**kwargs):
+        self.kps_jd = load_json_to_dict(world_frame_kps_file_path)
+        self.prifix = prifix
+        super().__init__(*args,**kwargs)
+
+
+
+
+
+    def write(self, data: dict):
+        # Iterate over the render products
+        for rp_name, annotators_data in data["renderProducts"].items():
+
+            # Process the frame data of the current render product
+            bounding_box_3d_data = annotators_data[self.BB3D_ANNOT_NAME]
+            camera_params_data = annotators_data[self.CAM_PARAMS_ANNOT_NAME]
+            # 确保主体存在
+            num_objs = self._process_frame_data(bounding_box_3d_data, camera_params_data)
+
+            # Early exist if empty frames should not be written
+            if self._skip_empty_frames and num_objs == 0:
+                continue
+
+            # Create render product name subfolder if data should be separated for each render product
+            rp_subfolder = f"{rp_name}/" if self._use_subfolders else ""
+
+            
+            
+            shapes = []
+            # save_center_from_posewriter_data(jd,dst_json_path)
+            camera_jd = self._frame_data['camera_data']
+            kps_screen = calculate_kps_based_on_world_file(camera_jd,self.kps_jd)
+            for k,v in kps_screen.items():
+                shapes.append(construct_one_shape(**{
+                    'label':k,
+                    'points':[v],
+                    'shape_type':'point',
+                }))
+
+            shapes.sort(key=lambda x: int(x['label']))
+            
+            points = np.array([shape['points'][0] for shape in shapes])
+            offset = 25
+
+            x0,y0 = points[:,0].min()-offset,points[:,1].min()-offset
+            x1,y1 = points[:,0].max()+offset,points[:,1].max()+offset
+
+            shapes.append(construct_one_shape(label='bbox',points=[[int(x0),int(y0)],[int(x1),int(y1)]]))
+
+
+            w,h = camera_jd["resolution"]
+            # dst_json_path = os.path.join(dst_json_dir,os.path.basename(target_json_path))
+            self._frame_data = construct_labelme_jd(shapes,'',h,w)
+            
+            
+            
+            
+            # Write frame data to disk
+            rgb_data = annotators_data[self.RGB_ANNOT_NAME]["data"]
+            
+            
+            
+            
+            
+            self._write_frame_data(rgb_data, rp_subfolder)
+            if self._write_debug_images:
+                self._write_debug_data(rgb_data, rp_subfolder)
+
+            # If render products are NOT separated into subfolders increment the frame id after processing each render product
+            if not self._use_subfolders:
+                self._frame_id += 1
+
+        # If render products are separated into subfolders increment the frame id after processing all render products
+        if self._use_subfolders:
+            self._frame_id += 1
+
+
+    
+    
+    def _write_frame_data(self, rgb_data: dict, render_product_subfolder: str = ""):
+
+        time_prefix = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H')
+        
+
+        # Write image to disk
+        rgb_file_path = f"{self.prifix}{render_product_subfolder}{time_prefix}{self._frame_id:0{self._frame_padding}}.jpg"
+        self.backend.schedule(write_image, path=rgb_file_path, data=rgb_data)
+
+        # Write frame data to as a JSON file
+        file_path_json = rgb_file_path[:-4] + '.json'
+        self._frame_data['imagePath'] = os.path.basename(rgb_file_path)
+        
+        self.backend.schedule(write_json, path=file_path_json, data=self._frame_data, indent=2)
 
 
 

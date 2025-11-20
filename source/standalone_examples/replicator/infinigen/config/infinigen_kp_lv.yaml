@@ -23,15 +23,15 @@ environments:
 
 capture:
   # Number of captures (frames = total_captures * num_cameras)
-  total_captures: 30
+  total_captures: 80
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 10
+  num_dropped_captures_per_env: 40
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 5
   # Resolution of the captured frames
-  resolution: [1080, 720]
+  resolution: [900, 900] # [640,480]
   
   focal_lengths: [50] #[50] [50,35,28,24]
 
@@ -44,38 +44,55 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: 0.2
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.8, 1.8]
+  camera_distance_to_target_range: [0.8, 1.3]
   # Number of scene lights to create in the working area
-  num_scene_lights: 15
+  num_scene_lights: 5
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
-  lights_intensity_range: [4200,4800] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
+  lights_intensity_range: [3200,8800] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
   lights_color_range: [0.1,0.1,0.1,1,1,1]
 
-  
-  polar_angle_range: [0,2]
+  camera_loc_yaw_range: [0,360]
+  polar_angle_range: [0,10]
 
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
 
-  - type: BasicWriter
-    kwargs:
-      output_dir: /data2/data/basic_kp
-      rgb: true
-      semantic_segmentation: true
-      colorize_semantic_segmentation: true
-      use_common_output_dir: false
   # - type: LMDBWriter
   #   kwargs:
-  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1107_tuopan_focal_length_50_v1
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1110_zsj_focal_length_50_v1
   #     cache_capacity: 500
   #     format: null # dope ; centerpose
   #     skip_empty_frames: true
   #     truncation_ratio: 0.5
   #     visibility_ratio: 0.75
   #     rotate_threshold: 360
-  #     show_bin: 500
+  #     show_bin: 1
+  
+  # - type: BasicWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1111_disk_kp_v1_0
+  #     rgb: true
+  #     semantic_segmentation: true
+  #     colorize_semantic_segmentation: true
+  #     use_common_output_dir: false
 
-
+  # - type: PoseWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1114_disk_kp_v3_0
+  #     format: null # dope ; centerpose
+  #     use_subfolders: false
+  #     write_debug_images: false
+  #     skip_empty_frames: false
+  
+  - type: KPSWriter
+    kwargs:
+      world_frame_kps_file_path: /home/ubuntu/lxd/usd_file/glb/keypoint_det/disk_kps_world_frame.json
+      prifix: 'disk_kps_'
+      output_dir: /data2/data/_out_infinigen_kpswriter_lv_1114_disk_kp_v3_0
+      format: null # dope ; centerpose
+      use_subfolders: false
+      write_debug_images: false
+      skip_empty_frames: false
 
 labeled_assets:
   # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
@@ -112,7 +129,7 @@ labeled_assets:
     - &jj-nobase
       <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/pre/JJ_2_no_base.usd
-      label: jj
+      label: jj_nobase
 
 
     - &disk
@@ -136,31 +153,37 @@ labeled_assets:
       <<: *base_data
       url: file:///home/ubuntu/lxd/usd_file/glb/converted/GD960-JJ-50HP.usd
       label: gd960
+
+    - &zsj
+      <<: *base_data
+      url: file:///home/ubuntu/lxd/usd_file/glb/3dModels/hard/ZSJ.usd
+      label: zsj
     
     - &disk_kp
       <<: *base_data
-      url: file:///home/ubuntu/lxd/usd_file/glb/keypoint_det/_29_disk2_with_10_glass_kps.usd
-      label: disk_kp    
+      url: file:///home/ubuntu/lxd/usd_file/glb/keypoint_det/_29_disk2_with_10_normal_kps.usd
+      label: disk_kp      
+    
 
 
   # Manually labeled assets with specific labels and properties
-  manual_label:
-    # - *zsj
+  # manual_label:
+  #   - *disk_kp
 
   original_label:
-    - *disk_kp
+    - *disk
 
   
 distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 0
-    distractor_shapes_max_num: 0
+    num: 2
+    distractor_shapes_max_num: 30
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
-      z: [-0.1,-0.7]
+      z: [-0.15,-0.7]
     scale_range: [0.02,0.055]
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
@@ -170,13 +193,13 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 0
-    distractor_meshes_max_num: 0
+    num: 2
+    distractor_meshes_max_num: 30
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-0.5,0.5]
       y: [0,0.5]
-      z: [0.1,0.8]
+      z: [0.15,0.8]
     scale_range: [0.15,0.25]
 
     gravity_disabled_chance: 0.25
@@ -203,7 +226,7 @@ distractors:
 materials_control: 
   classic_materials:
 
-    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_materials.usd
+    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_for_disk.usd
     scope_path: /general_looks
   
   pbr:
@@ -213,14 +236,15 @@ materials_control:
     num: 30
     metallic_constant: [0.1,0.99]
     reflection_roughness: [0.01,1]
-    texture_scale: [.1,2]
+    texture_scale: [0.1,15]
     translate: [1,500]
-    texture_root: /home/ubuntu/lxd/usd_file/imgs
+    texture_bg: /data2/isaacsim/bg_img/pure_bg
+    texture_poliigon: /data2/isaacsim/materials/pbr_texture
     # project_uvw: false
 
 
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: false
-headless: true
+debug_mode: true
+headless: false

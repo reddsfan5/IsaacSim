@@ -1,5 +1,7 @@
 
 import omni.usd
+from collections import defaultdict
+from pathlib import Path
 from typing import Union,Literal
 from pxr import UsdShade,Usd,Sdf,UsdGeom,Gf,Vt
 import random
@@ -13,6 +15,48 @@ import string
 import carb
 
 GLOBAL_SEED  = 4122     
+
+
+
+class MaterialTexture:
+    def __init__(self, root: str):
+        self.mats = self._construct_mat_map(root)
+
+    def _match_key_info(self, file_name: str):
+        parts = {p.lower() for p in file_name.split('_')}
+        keys = ("col", "rough", "nrm", "refl", "ao")
+
+        for key in keys:
+            if key in parts:
+                return key
+
+    def _filter_valid_mat_map(self, mat_map: dict):
+        new_mat_map = {}
+        for key, value in mat_map.items():
+            # 确保至少存在 col
+            if 'col' in value.keys():
+                new_mat_map[key] = value
+        return new_mat_map
+
+    def _construct_mat_map(self, root: str):
+        mat_map = defaultdict(dict)
+
+        for file_path in Path(root).rglob('*'):
+            if file_path.suffix == '.jpg':
+                key_word = self._match_key_info(file_path.name)
+                if key_word:
+                    rel_path = file_path.relative_to(root)
+                    key = '-'.join(rel_path.parent.parts)
+                    mat_map[key][key_word] = file_path.as_posix()
+        mat_map = self._filter_valid_mat_map(mat_map)
+        return mat_map
+
+    def __len__(self):
+        return len(self.mats)
+
+    def choice(self):
+        k = random.choice(list(self.mats.keys()))
+        return k,self.mats[k]
 
 class OmniPBRPlus(OmniPBR):
     '''
@@ -30,12 +74,11 @@ class OmniPBRPlus(OmniPBR):
             self.shaders_list[0].CreateInput("reflectionroughness_texture", Sdf.ValueTypeNames.Asset).Set(reflectionroughness_texture_path)
         else:
             self.shaders_list[0].GetInput("reflectionroughness_texture").Set(reflectionroughness_texture_path)
-
+        
         if self.shaders_list[0].GetInput("reflection_roughness_texture_influence").Get() is None:
             self.shaders_list[0].CreateInput("reflection_roughness_texture_influence", Sdf.ValueTypeNames.Float).Set(roughness_map_influence)
         else:
             self.shaders_list[0].GetInput("reflection_roughness_texture_influence").Set(roughness_map_influence)
-        
         return
 
 
@@ -236,7 +279,8 @@ def bind_materials_to_assets(target_assets:list[Usd.Prim],materials:list[UsdShad
         for prim in Usd.PrimRange(target_asset):
             try:
                 if prim.IsA(UsdGeom.Gprim):
-                    bind_material_to_prim_randomly(prim,materials)
+                    binding_strength = UsdShade.Tokens.strongerThanDescendants if is_maintain_material_structure else UsdShade.Tokens.weakerThanDescendants
+                    bind_material_to_prim_randomly(prim,materials,bindingStrength=binding_strength)
                     random_gprim_color(target_asset)
 
                 elif prim.IsA(UsdGeom.Subset):

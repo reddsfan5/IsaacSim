@@ -167,7 +167,8 @@ def _signed_angle_deg(a: Gf.Vec3d, b: Gf.Vec3d, axis: Gf.Vec3d) -> float:
 def get_random_location_on_sphere(
     origin: Tuple[float, float, float],
     radius_range: Tuple[float, float],
-    polar_angle_range: Tuple[float, float]
+    polar_angle_range: Tuple[float, float],
+    camera_loc_yaw_range: Tuple[float, float]=(0,360)
 ) -> Tuple[Gf.Vec3d, Gf.Quatf]:
     """
     生成 Y-UP 场景中的随机相机位姿，使相机看向 origin。
@@ -185,7 +186,7 @@ def get_random_location_on_sphere(
 
     theta = random.uniform(theta_min, theta_max)
 
-    phi = random.uniform(0.0, 2.0 * math.pi)
+    phi = random.uniform(2.0*math.pi*camera_loc_yaw_range[0]/360, 2.0*math.pi*camera_loc_yaw_range[1]/360)  # random.uniform(0.0, 2.0 * math.pi)
 
     # 半径
     r = random.uniform(radius_range[0], radius_range[1])
@@ -291,6 +292,8 @@ def randomize_camera_poses(
     polar_angle_range: Tuple[float, float] = (0, 180),
     look_at_offset: Tuple[float, float] = (-0.1, 0.1),
     keep_level: bool = False,
+    camera_loc_yaw_range: Tuple[float, float]=(0,360)
+    
 ) -> None:
     """
     为一组相机生成随机机位（Y-UP）。每台相机看向随机目标点。
@@ -310,6 +313,8 @@ def randomize_camera_poses(
         # 随机机位（Y-UP）
         roll = random.uniform(-15,15)
 
+
+
         if polar_angle_range[1]==90 and polar_angle_range[0]==0:
             if random.uniform(0,1) < 0.15:
                 cur_polar_angle_range = (0, 15)
@@ -327,7 +332,8 @@ def randomize_camera_poses(
         loc= get_random_location_on_sphere(
             origin=look_at,
             radius_range=distance_range,
-            polar_angle_range=cur_polar_angle_range
+            polar_angle_range=cur_polar_angle_range,
+            camera_loc_yaw_range=camera_loc_yaw_range
         )
         pitch,yaw = calculate_camera_pitch_yaw(*loc,0,0,0)
         # 写回（此函数由isaacsim项目里提供）
@@ -934,7 +940,7 @@ def setup_writer(config: dict) -> None:
     return writer
 
 
-def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim):
+def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim,plain_prim_offset:tuple[float,float,float]=(0,0,0)):
     print(f'******************进入环境基于桌面移动的函数{plain_prim}**************************')
 
     bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
@@ -962,9 +968,9 @@ def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim):
     x_delta = (table_size[0]-target_asset_size[0] - x_padding) / 2
     z_delta = (table_size[2]-target_asset_size[2]- z_padding) / 2
 
-    x_location = random.uniform(target_asset_center[0]-x_delta, target_asset_center[0]+x_delta)
-    z_location = random.uniform(target_asset_center[2]-z_delta, target_asset_center[2]+z_delta)
-    y_location = target_asset_min[1] - table_size[1]/2
+    x_location = random.uniform(target_asset_center[0]-x_delta, target_asset_center[0]+x_delta) + plain_prim_offset[0]
+    z_location = random.uniform(target_asset_center[2]-z_delta, target_asset_center[2]+z_delta) + plain_prim_offset[2]
+    y_location = target_asset_min[1] - table_size[1]/2 + plain_prim_offset[1]
 
     table_center_target_location = (x_location, y_location, z_location)
 
@@ -1055,3 +1061,23 @@ def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float
         # UsdGeom.Xformable(target_prim).GetScaleOp().Set(ori_value*scale)
 
     return scale
+
+
+def random_visibility(parent="/Distractors"):
+    stage = omni.usd.get_context().get_stage()
+    root = stage.GetPrimAtPath(parent)
+    children = root.GetChildren()
+    
+    
+    # Step 1: 全部显示
+    for p in children:
+        UsdGeom.Imageable(p).MakeVisible()
+
+    # Step 2: 随机隐藏
+    hide_count = random.randint(0,len(children))
+    print(hide_count)
+    to_hide = random.sample(children, hide_count)
+    for p in to_hide:
+        UsdGeom.Imageable(p).MakeInvisible()
+
+    print(f"保持 {len(children)-hide_count} 个，隐藏 {hide_count} 个")
