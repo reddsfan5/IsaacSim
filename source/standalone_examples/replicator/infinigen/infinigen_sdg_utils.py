@@ -290,8 +290,8 @@ def randomize_camera_poses(
     targets: List[Usd.Prim],
     distance_range: Tuple[float, float],
     polar_angle_range: Tuple[float, float] = (0, 180),
-    look_at_offset: Tuple[float, float] = (-0.1, 0.1),
-    keep_level: bool = False,
+    look_at_offset: Tuple[float, float] = (0,0),
+    look_at: tuple = (0,0,0),
     camera_loc_yaw_range: Tuple[float, float]=(0,360)
     
 ) -> None:
@@ -306,7 +306,8 @@ def randomize_camera_poses(
         target = random.choice(targets)
 
         # 目标点与轻微抖动
-        tgt = target.GetAttribute("xformOp:translate").Get()
+        # tgt = target.GetAttribute("xformOp:translate").Get()
+        tgt = look_at
         jitter = lambda: rnd(look_at_offset[0], look_at_offset[1])
         look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
 
@@ -335,7 +336,7 @@ def randomize_camera_poses(
             polar_angle_range=cur_polar_angle_range,
             camera_loc_yaw_range=camera_loc_yaw_range
         )
-        pitch,yaw = calculate_camera_pitch_yaw(*loc,0,0,0)
+        pitch,yaw = calculate_camera_pitch_yaw(*loc,*look_at)
         # 写回（此函数由isaacsim项目里提供）
         # set_transform_attributes(cam, location=loc, orientation=euler_to_quaternion(*euler_angle))
         
@@ -938,6 +939,15 @@ def setup_writer(config: dict) -> None:
 
     writer.initialize(**writer_kwargs)
     return writer
+
+
+
+def calculate_asset_world_center(prim:Usd.Prim):
+    bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
+    asset_world_bound_bbox = bbox_cache.ComputeWorldBound(prim)
+    asset_world_bound_aligned_range = asset_world_bound_bbox.ComputeAlignedRange()
+    asset_world_center = asset_world_bound_aligned_range.GetMidpoint()
+    return asset_world_center
 
 
 def translate_env_under_target_asset(plain_prim:Usd.Prim,target_prim:Usd.Prim,plain_prim_offset:tuple[float,float,float]=(0,0,0)):

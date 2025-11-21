@@ -350,7 +350,7 @@ def run_sdg(config):
         
         bind_materials_to_assets(
             target_assets,classic_materials,
-            is_maintain_material_structure=False,usd_materials_num=5)
+            is_maintain_material_structure=False,usd_materials_num=10)
 
 
         # Load the new environment
@@ -384,7 +384,7 @@ def run_sdg(config):
         bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
         plane_prim = random.choice(plane_prims)
 
-    
+        
         # translate the env location to make the plane under target prim
         infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
 
@@ -405,6 +405,8 @@ def run_sdg(config):
             infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
             infinigen_utils.asset_size_adaptive(asset_to_adapt)
 
+        target_asset_center = infinigen_utils.calculate_asset_world_center(target_assets[0])
+        print('[[middle]]',tuple(target_asset_center))
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
 
@@ -480,8 +482,11 @@ def run_sdg(config):
             
             # Randomize the camera poses
             print(f"\tRandomizing {len(cameras)} camera poses")
+            
+
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range']
+                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],look_at=tuple(target_asset_center),
+                look_at_offset = capture_config['camera_look_at_target_offset']
             )
             
             simulation_app.update()
@@ -533,7 +538,8 @@ def run_sdg(config):
                 infinigen_utils.random_visibility("/Distractors")
                 
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],camera_loc_yaw_range=capture_config['camera_loc_yaw_range']
+                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],camera_loc_yaw_range=capture_config['camera_loc_yaw_range'],look_at=tuple(target_asset_center),
+                look_at_offset = capture_config['camera_look_at_target_offset']
             )
             print(
                 f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"

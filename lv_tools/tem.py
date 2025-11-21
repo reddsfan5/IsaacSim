@@ -1,29 +1,74 @@
-import omni.usd
-from pxr import UsdGeom,Usd
-import random
-# too big:[GD960_JJ_50HP,]
-# too small: crane # 侧翻(模型转化，up axis怎么设置)
+import omni
+from pxr import UsdGeom, Gf, UsdPhysics, PhysxSchema
 
+def create_stage():
+    ctx = omni.usd.get_context()
+    stage = ctx.get_stage()
 
-def random_visibility(parent="/Distractors"):
-    stage = omni.usd.get_context().get_stage()
-    root = stage.GetPrimAtPath(parent)
-    children = root.GetChildren()
-    
-    
-    # Step 1: 全部显示
-    for p in children:
-        UsdGeom.Imageable(p).MakeVisible()
+    # 清空场景
+    stage.DefinePrim("/World", "Xform")
+    stage.SetDefaultPrim(stage.GetPrimAtPath("/World"))
 
-    # Step 2: 随机隐藏
-    hide_count = random.randint(0,len(children))
-    print(hide_count)
-    to_hide = random.sample(children, hide_count)
-    for p in to_hide:
-        UsdGeom.Imageable(p).MakeInvisible()
+    return stage
 
-    print(f"保持 {len(children)-hide_count} 个，隐藏 {hide_count} 个")
+def add_ground(stage):
+    """静态地面 + 碰撞体"""
+    plane = stage.DefinePrim("/World/Ground", "Xform")
+    UsdGeom.Mesh.Define(stage, "/World/Ground/mesh")
 
-prim_path = '/Distractors'
+    # 创建可视化平面
+    UsdGeom.Mesh.Get(stage, "/World/Ground/mesh").CreateExtentAttr([(-500,-500,0), (500,500,0)])
+    UsdGeom.Mesh.Get(stage, "/World/Ground/mesh").CreatePointsAttr([
+        (-500, -500, 0),
+        (500, -500, 0),
+        (500, 500, 0),
+        (-500, 500, 0),
+    ])
+    UsdGeom.Mesh.Get(stage, "/World/Ground/mesh").CreateFaceVertexCountsAttr([4])
+    UsdGeom.Mesh.Get(stage, "/World/Ground/mesh").CreateFaceVertexIndicesAttr([0,1,2,3])
 
-random_visibility(prim_path)
+    # 添加碰撞体
+    UsdPhysics.CollisionAPI.Apply(plane)
+    PhysxSchema.PhysxCollisionAPI.Apply(plane)
+
+    return plane
+
+def add_falling_box(stage):
+    """动态立方体 + 碰撞体 + 刚体"""
+    cube = UsdGeom.Cube.Define(stage, "/World/Box")
+    cube.AddTranslateOp().Set(Gf.Vec3f(0, 0, 50))  # 放高一点让它掉落
+
+    prim = stage.GetPrimAtPath("/World/Box")
+
+    # 添加碰撞体
+    UsdPhysics.CollisionAPI.Apply(prim)
+    PhysxSchema.PhysxCollisionAPI.Apply(prim)
+
+    # 添加刚体
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    UsdPhysics.MassAPI.Apply(prim)
+
+    return prim
+
+def enable_physics(stage):
+    """创建 Physics Scene（必须有，否则不会模拟）"""
+
+    scene = UsdPhysics.Scene.Define(stage, "/World/physicsScene")
+    scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, 0.0, -1.0))
+    scene.CreateGravityMagnitudeAttr().Set(981.0)  # 1g = 981 cm/s^2
+
+    # 启用 PhysX
+    physxScene = PhysxSchema.PhysxSceneAPI.Apply(scene.GetPrim())
+    physxScene.CreateEnableCCDAttr(True)
+
+    return scene
+
+def run():
+    stage = create_stage()
+    enable_physics(stage)
+    add_ground(stage)
+    add_falling_box(stage)
+
+    print("Scene ready. Press Play in the UI to see the box drop.")
+
+run()
