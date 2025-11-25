@@ -6,7 +6,11 @@
             "program": "${file}",
             "cwd":"${workspaceFolder}",
             "justMyCode":false,
-            "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml"],
+            "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml", 
+            "--task_id", "888", "--local_glb_path", "/data2/isaacsim/assets/glb/C919.glb"
+
+]
+
 
         },
         {

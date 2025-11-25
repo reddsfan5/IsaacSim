@@ -19,6 +19,7 @@ import random
 import re
 from itertools import chain
 import time
+import pathlib
 import numpy as np
 import omni.kit.app
 import omni.kit.commands
@@ -29,6 +30,10 @@ import omni.usd
 from isaacsim.core.utils.semantics import add_labels,remove_all_semantics  # remove_labels
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.storage.native import get_assets_root_path
+
+import urllib.parse
+import sys
+
 
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade,UsdSemantics
 from typing import Union
@@ -1091,3 +1096,45 @@ def random_visibility(parent="/Distractors"):
         UsdGeom.Imageable(p).MakeInvisible()
 
     print(f"保持 {len(children)-hide_count} 个，隐藏 {hide_count} 个")
+
+
+
+def path_to_file_uri(path: str) -> str:
+    """
+    Convert a local filesystem path to a file:/// resource URI.
+    Works on Windows, Linux, macOS.
+    """
+    p = pathlib.Path(path).absolute()
+    # Convert to URI (pathlib automatically handles slashes and drive letters)
+    uri = p.as_uri()
+    return uri
+
+
+
+def file_uri_to_path(uri: str) -> str:
+    """
+    Convert file:/// URI to local filesystem path.
+    Works on Windows, Linux, macOS.
+    """
+    if not uri.lower().startswith("file://"):
+        raise ValueError("Not a file URI: " + uri)
+
+    parsed = urllib.parse.urlparse(uri)
+
+    # Network path: file://server/share/file
+    if parsed.netloc and parsed.netloc != "localhost":
+        # UNC path
+        path = f"//{parsed.netloc}{parsed.path}"
+    else:
+        # Local path
+        path = parsed.path
+
+    # URL decode (%20 → space)
+    path = urllib.parse.unquote(path)
+
+    # Windows: strip leading slash /C:/...
+    if sys.platform.startswith("win") and path.startswith("/"):
+        path = path[1:]
+
+    # Convert slashes for Windows
+    return os.path.normpath(path)

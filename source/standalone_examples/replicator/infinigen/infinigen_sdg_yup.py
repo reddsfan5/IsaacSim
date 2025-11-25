@@ -22,20 +22,58 @@ import json
 import math
 import os
 from pathlib import Path
+import shutil
 import sys
+from threading import local
 import yaml
 from isaacsim import SimulationApp
+import asyncio
+
+
+
+def progress_callback(current_step: int, total: int):
+    # Show progress
+    print(f"{current_step} of {total}")
+
+async def convert_asset_to_usd(input_asset_path, output_asset_path):
+    asset_converter_obj = AssetConverterContext()
+    asset_converter_obj.single_mesh = True
+    # asset_converter_obj.use_meter_as_world_unit = True
+    asset_converter_obj.merge_all_meshes = True
+    asset_converter_obj.convert_stage_up_z = False
+    asset_converter_obj.bake_mdl_material = True
+    asset_converter_obj.embed_mdl_in_usd = True  # Deprecated.
+
+
+
+    task_manager = converter.get_instance()
+    task = task_manager.create_converter_task(input_asset_path, output_asset_path, progress_callback,asset_converter_obj)
+    
+    
+    success = await task.wait_until_finished()
+    if not success:
+        # detailed_status_code = task.get_status()
+        detailed_status_error_string = task.get_error_message()
+        carb.log_error(detailed_status_error_string)
 
 
 
 # Check if there are any config files (yaml or json) are passed as arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("--config", required=False, help="Include specific config parameters (json or yaml))")
+parser.add_argument("--config", required=True, help="Yaml include specific config parameters")
 parser.add_argument(
     "--close-on-completion", action="store_true", help="Ensure the app closes on completion even in debug mode"
 )
 
-import sys
+parser.add_argument("--task_id", required=True, help="Subforder name")
+parser.add_argument("--remote_save_root", type=str, help='The remote root folder to save the generated dataset')
+parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str)
+parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float)
+parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float)
+
+
+
+
 print("Received args:", sys.argv)  # 检查是否打印出 launch.json 中的参数
 args, unknown = parser.parse_known_args()
 
@@ -56,7 +94,6 @@ else:
 config = args_config
 
 
-
 simulation_app = SimulationApp(launch_config={
     "headless": config.get("headless", False),
     "renderer": "RealTimePathTracing"  # 选择 RT 2.0 的渲染模式
@@ -66,9 +103,9 @@ simulation_app = SimulationApp(launch_config={
 
 import random
 from itertools import cycle
-
+import carb
 import carb.settings
-import infinigen_sdg_utils as infinigen_utils
+
 import numpy as np
 import omni.client
 import omni.kit
@@ -83,6 +120,16 @@ from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
+
+
+
+
+
+import infinigen_sdg_utils as infinigen_utils
+import omni.kit.asset_converter as converter
+from omni.kit.asset_converter import AssetConverterContext
+
+
 
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
@@ -151,8 +198,16 @@ def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool
         rep.orchestrator.wait_until_complete()
 
 
+
+
+
+
 # Run the SDG pipeline on the scenarios
-def run_sdg(config):
+def run_sdg(config,args):
+
+    # ⭐命令行调整配置⭐
+    # config['capture']['camera_loc_yaw_range'] = args.camera_yaw
+    # config['capture']['polar_angle_range'] = args.camera_polar
 
     # ⭐加载配置⭐
     # Load the config parameters
@@ -162,8 +217,8 @@ def run_sdg(config):
     )
     capture_config = config.get("capture", {})
     writers_config = config.get("writers", {})
-    
-    labeled_assets_config = config.get("labeled_assets", {})
+    # print('220*+*+**+*+*+*+*+*+*:capture配置')
+    # print(capture_config)
     distractors_config = config.get("distractors", {})
     
     materials_control_config = config.get("materials_control",{})
@@ -173,7 +228,33 @@ def run_sdg(config):
     print(f"[SDG-Infinigen] Creating a new stage")
 
 
+    # asset格式转换，并存放到预期路径下，给出存放后的路径位置 。
+
+
+    if (input_path:=args.local_glb_path) and os.path.isfile(input_path):
+        usd_asset_dir = Path(config['global']['usd_asset_root'] + f'/{args.task_id}')
+        if not usd_asset_dir.exists():
+            usd_asset_dir.mkdir(exist_ok=True,parents=True)
+
+        output_path = str(usd_asset_dir / f"{Path(input_path).stem}.usd")
+
+        asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(input_path, output_path))
+        # simulation_app.close()
+
+        labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
+                                "label": str(args.task_id),
+                                "num": 1,
+                                "gravity_disabled_chance": 0}]}
+
+
+    else:
+        labeled_assets_config = config.get("labeled_assets", {})
+
+
     mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
+
+    
+    
 
     stage = omni.usd.get_context().get_stage()
     # Set stage Up axis
@@ -223,6 +304,8 @@ def run_sdg(config):
     writers = []
     if render_products:
         for writer_config in writers_config:
+            writer_config['kwargs']['task_id'] = args.task_id
+
             writer = infinigen_utils.setup_writer(writer_config)
             if writer:
                 writer.attach(render_products)
@@ -538,7 +621,7 @@ def run_sdg(config):
                 infinigen_utils.random_visibility("/Distractors")
                 
             infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],camera_loc_yaw_range=capture_config['camera_loc_yaw_range'],look_at=tuple(target_asset_center),
+                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=args.camera_polar,camera_loc_yaw_range=args.camera_yaw,look_at=tuple(target_asset_center),
                 look_at_offset = capture_config['camera_look_at_target_offset']
             )
             print(
@@ -603,8 +686,18 @@ debug_mode = config.get("debug_mode", False)
 
 # Start the SDG pipeline
 print(f"[SDG-Infinigen] Starting the SDG pipeline.")
-run_sdg(config)
+run_sdg(config,args)
 print(f"[SDG-Infinigen] SDG pipeline finished.")
+
+
+if args.remote_save_root:
+    shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
+
+    with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
+        f.write('done')
+
+
+
 
 # Make sure the app closes on completion even if in debug mode
 if args.close_on_completion:
@@ -616,3 +709,6 @@ if debug_mode:
         simulation_app.update()
 
 simulation_app.close()
+
+
+

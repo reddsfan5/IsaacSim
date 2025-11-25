@@ -18,7 +18,7 @@ from omni.replicator.core.annotators import AnnotatorRegistry
 # from omni.replicator.core.writers_default import BasicWriter
 from isaacsim.replicator.writers import PoseWriter
 from lv_tools.dataset_io.data_saver import LmdbSaver
-# from pprint import pprint
+
 import PIL
 import io
 
@@ -62,11 +62,13 @@ class LMDBWriter(PoseWriter):
                  rotate_threshold:float=90,
                  show_bin:int=1000,
                  expect_data_num:int=10000,
+                 task_id:str= '0000',
                  *args,**kwargs):
-        self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
+        # self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
+        self._output_dir = os.path.join(kwargs.get('output_dir',''), str(task_id))
         num_str = f'{round(expect_data_num/10000)}W' if int(expect_data_num/10000)>=1 else str(expect_data_num)
-        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_train_lmdb'
-        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_val_lmdb'
+        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_train_lmdb'
+        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_val_lmdb'
         self._truncation_ratio = truncation_ratio
         self._visibility_ratio = visibility_ratio
         self._rotate_threshold = rotate_threshold
@@ -77,19 +79,10 @@ class LMDBWriter(PoseWriter):
         self._val_count = 0
         self._train_count = 0
 
-
-        # semantic_segmentation = kwargs.pop('semantic_segmentation',False)
-        # bounding_box_2d_tight = kwargs.pop('bounding_box_2d_tight',False)
-
-        # self.colorize_semantic_segmentation = kwargs.pop('colorize_semantic_segmentation',True)
-
         super().__init__(*args,**kwargs)
 
-        # if bounding_box_2d_tight:
         self.annotators.append(self.BOUNDING_BOX_2D)
         
-        # Semantic Segmentation
-        # if semantic_segmentation:
         self.annotators.append(
             AnnotatorRegistry.get_annotator(
                 self.SEMANTIC_SEGMENTATION, init_params={"colorize": False}
