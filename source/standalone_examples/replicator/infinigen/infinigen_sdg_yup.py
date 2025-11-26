@@ -58,6 +58,9 @@ async def convert_asset_to_usd(input_asset_path, output_asset_path):
 
 
 
+
+
+
 # Check if there are any config files (yaml or json) are passed as arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", required=True, help="Yaml include specific config parameters")
@@ -68,8 +71,9 @@ parser.add_argument(
 parser.add_argument("--task_id", required=True, help="Subforder name")
 parser.add_argument("--remote_save_root", type=str, help='The remote root folder to save the generated dataset')
 parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str)
-parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float)
-parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float)
+parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
+parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
+parser.add_argument("--data_num",help='max data num',type=int)
 
 
 
@@ -228,6 +232,10 @@ def run_sdg(config,args):
     print(f"[SDG-Infinigen] Creating a new stage")
 
 
+    if args.data_num:
+        capture_config['total_captures'] = args.data_num
+
+
     # asset格式转换，并存放到预期路径下，给出存放后的路径位置 。
 
 
@@ -242,7 +250,7 @@ def run_sdg(config,args):
         # simulation_app.close()
 
         labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
-                                "label": str(args.task_id),
+                                "label": infinigen_utils.valid_stage_name(str(args.task_id)),
                                 "num": 1,
                                 "gravity_disabled_chance": 0}]}
 
@@ -467,6 +475,10 @@ def run_sdg(config,args):
         bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
         plane_prim = random.choice(plane_prims)
 
+
+        for asset_to_adapt in target_assets:
+            infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
+            infinigen_utils.asset_size_adaptive(asset_to_adapt)
         
         # translate the env location to make the plane under target prim
         infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
@@ -484,9 +496,7 @@ def run_sdg(config,args):
             set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
 
 
-        for asset_to_adapt in target_assets:
-            infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
-            infinigen_utils.asset_size_adaptive(asset_to_adapt)
+
 
         target_asset_center = infinigen_utils.calculate_asset_world_center(target_assets[0])
         print('[[middle]]',tuple(target_asset_center))
@@ -676,39 +686,42 @@ def run_sdg(config,args):
     print(f"[SDG-Infinigen] SDG Finished, captured {capture_counter * num_cameras} frames..")
 
 
-# Check if debug mode is enabled
-debug_mode = config.get("debug_mode", False)
+def main():
+    # Check if debug mode is enabled
+    debug_mode = config.get("debug_mode", False)
 
-# if debug_mode:
-#     np.random.seed(11)
-#     random.seed(11)
-#     rep.set_global_seed(11)
+    # if debug_mode:
+    #     np.random.seed(11)
+    #     random.seed(11)
+    #     rep.set_global_seed(11)
 
-# Start the SDG pipeline
-print(f"[SDG-Infinigen] Starting the SDG pipeline.")
-run_sdg(config,args)
-print(f"[SDG-Infinigen] SDG pipeline finished.")
-
-
-if args.remote_save_root:
-    shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
-
-    with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
-        f.write('done')
+    # Start the SDG pipeline
+    print(f"[SDG-Infinigen] Starting the SDG pipeline.")
+    run_sdg(config,args)
+    print(f"[SDG-Infinigen] SDG pipeline finished.")
 
 
+    # if args.remote_save_root:
+    #     shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
+
+    #     with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
+    #         f.write('done')
 
 
-# Make sure the app closes on completion even if in debug mode
-if args.close_on_completion:
+
+
+    # Make sure the app closes on completion even if in debug mode
+    if args.close_on_completion:
+        simulation_app.close()
+
+    # In debug mode, keep the app running until manually closed
+    if debug_mode:
+        while simulation_app.is_running():
+            simulation_app.update()
+
     simulation_app.close()
 
-# In debug mode, keep the app running until manually closed
-if debug_mode:
-    while simulation_app.is_running():
-        simulation_app.update()
 
-simulation_app.close()
-
-
+if __name__ == "__main__":
+    main()
 

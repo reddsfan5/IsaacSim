@@ -243,6 +243,9 @@ class LMDBWriter(PoseWriter):
 
                 self._train_saver.put(str(self._train_count).zfill(10).encode('utf8'),pickle_bytes)
                 self._train_count += 1
+                if self._train_count%10==0:
+                    print(f'current training data num:[ {self._train_count}]')
+
             
 
 

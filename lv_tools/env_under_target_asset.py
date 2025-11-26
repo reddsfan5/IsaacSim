@@ -1,6 +1,7 @@
 from pxr import Usd, UsdGeom, Gf
 # import omni.usd
 import random
+import os
 import sys
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 # from source.standalone_examples.replicator.infinigen.infinigen_sdg_utils import find_matching_prims
@@ -63,7 +64,7 @@ sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 import omni.usd
 from source.standalone_examples.replicator.infinigen.infinigen_sdg_utils import translate_env_under_target_asset,find_matching_prims
 
-root_path = '/World'
+root_path = '/Environment'
 
 
 # 指定USD文件路径和期望在舞台中的根路径（Prim Path）
@@ -87,14 +88,14 @@ plane_prims = find_matching_prims(
     '/World/dining_room_6/TableDiningFactory_5756319__spawn_asset_664843__001',
     '/World/dining_room_8/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS']
 )
-
+print(plane_prims)
 table_prim = random.choice(plane_prims)
 
 
 
-target_prim = stage.GetPrimAtPath('/World/airship')
+target_prim = stage.GetPrimAtPath('/Assets/falling__007')
 
-print(table_prim)
-print(target_prim)
+print(os.path.basename(str(table_prim.GetPath())))
+
 
 translate_env_under_target_asset(table_prim,target_prim)

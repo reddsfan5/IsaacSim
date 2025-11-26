@@ -232,7 +232,7 @@ yaw = atan2(dq,dp) = atan2(dx,dz)
     dz = z0 - target_z
     # 方位角 phi (绕 Y 轴旋转)
     yaw = math.atan2(dx, dz)  # 计算朝向的方位角（弧度）
-    print(f'yaw: {yaw / math.pi * 180}')  
+    # print(f'yaw: {yaw / math.pi * 180}')  
     return yaw
 
 
@@ -245,7 +245,7 @@ def calculate_pitch(x0, y0, z0, target_x, target_y, target_z):
     # 计算俯仰角 theta
     distance = math.sqrt(dx ** 2 + dz ** 2)
     pitch = math.atan2(dy, distance)  # 计算朝向的俯仰角（弧度）
-    print(f'pitch: {pitch / math.pi * 180}')  
+    # print(f'pitch: {pitch / math.pi * 180}')  
     return pitch
 
 
@@ -345,7 +345,7 @@ def randomize_camera_poses(
         # 写回（此函数由isaacsim项目里提供）
         # set_transform_attributes(cam, location=loc, orientation=euler_to_quaternion(*euler_angle))
         
-        print(f'roll:{roll}')
+        # print(f'roll:{roll}')
         
         set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d((pitch,yaw,roll)),rotate_order="ZXY")
 
@@ -472,7 +472,8 @@ def find_matching_prims(
     print(root_prim)
     for prim in Usd.PrimRange(root_prim):
         # print(str(prim.GetPath()))
-        if os.path.basename(str(prim.GetPath())) in [os.path.basename(exp_prim_str) for exp_prim_str in exception_prim_strings]:
+        # print(str(prim.GetPath()))
+        if os.path.basename(str(prim.GetPath())) in [os.path.basename(str(exp_prim_str)) for exp_prim_str in exception_prim_strings]:
             print(f"*************************移除标记好的可疑prim：{prim}***********************")
             continue
         if any(match in str(prim.GetPath()) for match in match_strings):
@@ -643,6 +644,16 @@ def load_auto_labeled_assets(auto_label_config: dict) -> tuple[list[Usd.Prim], l
         regex_replace_repl,
         gravity_disabled_chance,
     )
+
+def valid_stage_name(name:str):
+    '''
+    stage path will add falling/droping to the name,so no need to add underline beforehead.
+    '''
+    name = name.replace("-", "_")
+    valid_str = "".join(ch for ch in name if ch.isascii() and (ch.isalnum() or ch == "_"))
+    return valid_str
+
+    
 
 
 def create_labeled_assets(
