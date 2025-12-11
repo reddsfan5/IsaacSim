@@ -70,7 +70,7 @@ parser.add_argument(
 
 parser.add_argument("--task_id", required=True, help="Subforder name")
 parser.add_argument("--remote_save_root", type=str, help='The remote root folder to save the generated dataset')
-parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str)
+parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str,required=True)
 parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
 parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
@@ -94,8 +94,19 @@ if args.config and os.path.isfile(args.config):
 else:
     print(f"[SDG-Infinigen] Config file {args.config} does not exist, will use default config")
 
-# Update the default config dict with the external one
+
+
+
+
+
+
+#  Update the default config dict with the external one
 config = args_config
+lmdb_output_dir  = os.path.join(config['writers'][0]['kwargs']['output_dir'],str(args.task_id)) 
+
+config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
+
+
 
 
 simulation_app = SimulationApp(launch_config={
@@ -256,7 +267,8 @@ def run_sdg(config,args):
 
 
     else:
-        labeled_assets_config = config.get("labeled_assets", {})
+        return
+        # labeled_assets_config = config.get("labeled_assets", {})
 
 
     mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
@@ -419,6 +431,11 @@ def run_sdg(config,args):
 
 
     while capture_counter < total_captures:
+        if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
+            break
+
+
+
         # Load the next environment
         env_url = next(env_cycle)
 
@@ -567,43 +584,43 @@ def run_sdg(config,args):
             carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
 
         # Capture frames with the objects in the air
-        for i in range(num_floating_captures_per_env):
-            # Check if the total captures have been reached
-            if capture_counter >= total_captures:
-                break
+        # for i in range(num_floating_captures_per_env):
+        #     # Check if the total captures have been reached
+        #     if capture_counter >= total_captures:
+        #         break
            
             
-            # Randomize the camera poses
-            print(f"\tRandomizing {len(cameras)} camera poses")
+        #     # Randomize the camera poses
+        #     print(f"\tRandomizing {len(cameras)} camera poses")
             
 
-            infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],look_at=tuple(target_asset_center),
-                look_at_offset = capture_config['camera_look_at_target_offset']
-            )
+        #     infinigen_utils.randomize_camera_poses(
+        #         cameras, target_assets, camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],look_at=tuple(target_asset_center),
+        #         look_at_offset = capture_config['camera_look_at_target_offset']
+        #     )
             
-            simulation_app.update()
+        #     simulation_app.update()
             
-            print(
-                f"\tCapturing floating assets {i+1}/{num_floating_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
-            )
+        #     print(
+        #         f"\tCapturing floating assets {i+1}/{num_floating_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
+        #     )
             
             
-            infinigen_utils.run_simulation(num_frames=200, render=True)
-            rep.orchestrator.step(rt_subframes=rt_subframes, delta_time=0.0)
-            capture_counter += 1
+        #     infinigen_utils.run_simulation(num_frames=200, render=True)
+        #     rep.orchestrator.step(rt_subframes=rt_subframes, delta_time=0.0)
+        #     capture_counter += 1
 
         # Check if the render products need to be disabled until the next capture
-        if disable_render_products:
-            for rp in render_products:
-                rp.hydra_texture.set_updates_enabled(False)
+        # if disable_render_products:
+        #     for rp in render_products:
+        #         rp.hydra_texture.set_updates_enabled(False)
 
-        # Check if the render mode needs to be switched back to raytracing until the next capture
-        if use_path_tracing:
-            carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
+        # # Check if the render mode needs to be switched back to raytracing until the next capture
+        # if use_path_tracing:
+        #     carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
 
-        print(f"\tRunning the simulation")
-        infinigen_utils.run_simulation(num_frames=200, render=False)
+        # print(f"\tRunning the simulation")
+        # infinigen_utils.run_simulation(num_frames=200, render=False)
 
         # Check if the render products need to be enabled for the capture
         if disable_render_products:
@@ -618,6 +635,9 @@ def run_sdg(config,args):
             # Check if the total captures have been reached
             if capture_counter >= total_captures:
                 break
+
+            if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
+                break
             # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
             print(f"\tRandomizing camera poses")
 
@@ -627,9 +647,14 @@ def run_sdg(config,args):
             bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
             bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
             
+            # todo random visibility ,may result in unexpected exit
             if i%20 == 0:
                 infinigen_utils.random_visibility("/Distractors")
                 
+            # 取余 纬度转极角
+            # polar_range = [90-polar for polar in args.camera_polar]
+            # polar_range.sort()
+            
             infinigen_utils.randomize_camera_poses(
                 cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=args.camera_polar,camera_loc_yaw_range=args.camera_yaw,look_at=tuple(target_asset_center),
                 look_at_offset = capture_config['camera_look_at_target_offset']
@@ -667,10 +692,10 @@ def run_sdg(config,args):
     # Wait until the data is written to the disk
     rep.orchestrator.wait_until_complete()
     
-    for cur_asset in target_assets:
-        from isaacsim.core.utils.semantics import get_labels
-        label = get_labels(cur_asset)
-        print(label)
+    # for cur_asset in target_assets:
+    #     from isaacsim.core.utils.semantics import get_labels
+    #     label = get_labels(cur_asset)
+    #     print(label)
 
 
     # Detach the writers
@@ -684,6 +709,54 @@ def run_sdg(config,args):
         rp.destroy()
 
     print(f"[SDG-Infinigen] SDG Finished, captured {capture_counter * num_cameras} frames..")
+
+
+def o3d_syn_data_copy_to_local(remoteip, username, passdword, syn_data_dir, target_data_dir, copy_status=False):
+    """
+    o3d合成数据迁移
+    """
+    import time
+    import subprocess
+    from subprocess import Popen
+    def copy_syn_data_to_train_server_command(syn_data_dir, target_data_dir):
+        """ 拷贝合成数据到训练机器的目标地址 """
+        command = rf"sshpass -p {passdword} scp -r {syn_data_dir}/* {username}@{remoteip}:{target_data_dir} "
+        return command
+    def copy_syn_data_status_to_train_server_command(syn_data_dir, target_data_dir):
+        """ 拷贝合成数据到训练机器的目标地址 """
+        command = rf"plink -pw {passdword} scp -r {syn_data_dir} {username}@{remoteip}:{target_data_dir} "
+        return command
+    print(f"o3dGenDataInfo: -----数据拷贝到训练服务器-----")
+    if copy_status:
+        gen_common = copy_syn_data_status_to_train_server_command(
+            syn_data_dir=syn_data_dir, 
+            target_data_dir=target_data_dir,
+        )
+    else:
+        gen_common = copy_syn_data_to_train_server_command(
+            syn_data_dir=syn_data_dir, 
+            target_data_dir=target_data_dir,
+        )
+    print(f"o3dGenDataInfo: 执行命令如下\n\t{gen_common}")
+    start_time = time.time()
+    p = Popen(
+        gen_common,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True
+    )
+
+    time.sleep(3)
+    print(f"o3dGenDataInfo: 生成数据迁移中......")
+
+    if p.wait():
+        end_time = time.time()
+        print("o3dGenDataInfo: 结束的时间：【{}】".format(
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time))))
+        count_time = end_time - start_time
+        print(f"o3dGenDataInfo: 所用的时间：【{count_time}】")
+    time.sleep(2)
 
 
 def main():
@@ -701,11 +774,26 @@ def main():
     print(f"[SDG-Infinigen] SDG pipeline finished.")
 
 
-    # if args.remote_save_root:
+    if args.remote_save_root: # For remote save copy
     #     shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
 
     #     with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
     #         f.write('done')
+        print("=====> o3d合成数据迁移开始")
+        end_flag_path = os.path.join(lmdb_output_dir, "o3d_done.txt")
+        if not os.path.exists(end_flag_path):
+            with open(end_flag_path,'w',encoding='utf8') as f:
+                f.write('done')
+        print(f"=====> o3d合成数据迁移开始: {args.remote_save_root}")
+        o3d_syn_data_copy_to_local(
+            config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
+            lmdb_output_dir, args.remote_save_root) # o3d合成数据迁移到训练机器username, password, lmdb_output_dir, remote_save_root)
+        print(f"=====> o3d合成数据迁移完成: {args.remote_save_root}")
+        print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy开始")
+        o3d_syn_data_copy_to_local(
+            config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
+            end_flag_path, args.remote_save_root, copy_status=True)
+        print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy完成")
 
 
 
@@ -724,4 +812,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

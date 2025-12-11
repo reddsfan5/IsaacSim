@@ -1,0 +1,13 @@
+PLINK v1.9.0-b.7.11 64-bit (19 Aug 2025)
+Options in effect:
+  --pw 123456 scp
+  --r alva@192.168.1.17:/data2/data/_007/id3 D:/LHB/ModelTargets/unit3dMultiCls/Airship_0922_top360_little
+
+Hostname: ubuntu-System-Product-Name
+Working directory: /home/ubuntu/lxd/lxd_code/isaacsim
+Start time: Sat Nov 29 18:48:09 2025
+
+Error: Unrecognized flag ('--pw').
+For more information, try "plink --help <flag name>" or "plink --help | more".
+
+End time: Sat Nov 29 18:48:09 2025

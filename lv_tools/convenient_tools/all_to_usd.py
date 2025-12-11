@@ -86,3 +86,4 @@ if __name__ == "__main__":
         asyncio.get_event_loop().run_until_complete(convert_glb_to_usd(str(src_file), str(dst_file)))
     simulation_app.close()
 
+

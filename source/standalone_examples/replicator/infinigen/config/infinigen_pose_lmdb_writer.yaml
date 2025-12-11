@@ -19,7 +19,7 @@ environments:
   folders:
     # - /Isaac/Samples/Replicator/Infinigen/dining_rooms
     # - file:///data2/isaacsim/scene/dining_rooms
-    - file:///data2/infinigen_indoor/dining_room_20
+    - file:///data2/infinigen_indoor/checked
   
   files: []
 
@@ -243,5 +243,5 @@ materials_control:
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: true
-headless: false
+debug_mode: false
+headless: true

@@ -14,6 +14,11 @@
 global:
   usd_asset_root: /data2/isaacsim/assets/converted_usd
   output_root: &output_root /data2/data
+remote:
+  username: alva
+  password: 123456
+  remoteip: 192.168.1.17
+
 environments:
   # List of background environments (list of folders or files)
   folders:
@@ -30,9 +35,9 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 30
+  num_dropped_captures_per_env: 45
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 1
+  num_cameras: 5
   # Resolution of the captured frames
   resolution: [640, 480] # [640,480]
   
@@ -245,3 +250,5 @@ materials_control:
 # Hide ceiling, move viewport camera to top-down view above the working area
 debug_mode: false
 headless: true
+
+

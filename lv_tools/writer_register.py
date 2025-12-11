@@ -65,7 +65,8 @@ class LMDBWriter(PoseWriter):
                  task_id:str= '0000',
                  *args,**kwargs):
         # self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
-        self._output_dir = os.path.join(kwargs.get('output_dir',''), str(task_id))
+        # self._output_dir = os.path.join(kwargs.get('output_dir',''), str(task_id))
+        self._output_dir = kwargs.get('output_dir','')
         num_str = f'{round(expect_data_num/10000)}W' if int(expect_data_num/10000)>=1 else str(expect_data_num)
         _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_train_lmdb'
         _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_val_lmdb'
