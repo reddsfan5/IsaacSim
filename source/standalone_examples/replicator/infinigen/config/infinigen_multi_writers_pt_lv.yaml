@@ -35,7 +35,7 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 45
+  num_dropped_captures_per_env: 200
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 5
   # Resolution of the captured frames
@@ -52,7 +52,7 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: [-0.02,0.02]
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.9, 2.0]
+  camera_distance_to_target_range: [0.9, 2.5]
   # Number of scene lights to create in the working area
   num_scene_lights: 8
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
@@ -70,7 +70,7 @@ writers:
       output_dir: *output_root
       task_id: 007
       expect_data_num: 3000
-      show_bin: 10
+      show_bin: 999
       cache_capacity: 100
       format: null # dope ; centerpose
       skip_empty_frames: true
@@ -126,12 +126,12 @@ labeled_assets:
     - &jj-withbase
       <<: *base_data
       url: file:///data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd
-      label: jj
+      label: Warship
 
     - &jj-nobase
       <<: *base_data
       url: file:///data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2_no_base.usd
-      label: jj_nobase
+      label: Warship_no_base
 
 
     - &disk
@@ -183,11 +183,11 @@ distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 10
+    num: 15
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
-      x: [-0.5,0.5]
+      x: [-1,1]
       y: [0,0.5]
-      z: [-0.15,-0.7]
+      z: [-0.15,-1.5]
     scale_range: [0.02,0.055]
     # Chance to disable gravity for the shape distractors
     gravity_disabled_chance: 0.25
@@ -197,12 +197,12 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 10
+    num: 15
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
-      x: [-0.5,0.5]
+      x: [-1,1]
       y: [0,0.5]
-      z: [0.15,0.8]
+      z: [0.15,1.5]
     scale_range: [0.15,0.25]
 
     gravity_disabled_chance: 0.25

@@ -9,7 +9,7 @@ from datetime import datetime
 
 import numpy as np
 from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov,calculate_kps_based_on_world_file
-from lv_tools.cores.img_io import cv2imwrite
+from lv_tools.cores.img_io import cv2imwrite, img_byte_to_arr
 from lv_tools.cores.json_io import load_json_to_dict, save_json
 from lv_tools.data_parsing.labelme_json_constructor import construct_labelme_jd,construct_one_shape
 from omni.replicator.core.scripts.functional import write_image, write_json
@@ -263,14 +263,25 @@ class LMDBWriter(PoseWriter):
                     
                     img_ori_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'.jpg')
                     img_draw_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_overlay.jpg')
+                    img_seg_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_seg.jpg')
                     bgr_data = cv2.cvtColor(rgb_data,cv2.COLOR_RGB2BGR)
                     pil_img = PIL.Image.fromarray(bgr_data)
                     draw = PIL.ImageDraw.Draw(pil_img)
 
                     keypoints = self._frame_data['objects'][0]['cuboid_keypoints_projected']
+
                     draw_projected_keypoints(draw,keypoints)
+
+
+                    # seg = img_byte_to_arr(s['semantic_segmentation'])
+                    # seg = np.where(seg==2,255,0).astype(np.uint8)
+                    # ret = cv2.addWeighted(bgr_data, 0.5, seg, 0.5,0)
+
                     cv2imwrite(img_ori_path,bgr_data)
                     cv2imwrite(img_draw_path,np.array(pil_img))
+
+                    # cv2imwrite(img_seg_path,ret)
+
 
 
                     data_dict['rotation_matrix_camera_frame'] = self._frame_data['objects'][0]['rotation_matrix_camera_frame']

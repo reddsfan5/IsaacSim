@@ -648,8 +648,8 @@ def run_sdg(config,args):
             bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
             
             # todo random visibility ,may result in unexpected exit
-            if i%20 == 0:
-                infinigen_utils.random_visibility("/Distractors")
+            # if i%20 == 0:
+            #     infinigen_utils.random_visibility("/Distractors")
                 
             # 取余 纬度转极角
             # polar_range = [90-polar for polar in args.camera_polar]
