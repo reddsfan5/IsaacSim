@@ -198,7 +198,7 @@ def get_random_location_on_sphere(
 
     # Y-UP 球坐标 -> 笛卡尔
     x = r * math.sin(theta) * math.cos(phi)  
-    y = r * math.cos(theta)                 # 注意 Y 是极轴
+    y = r * math.cos(theta) #  Y 是极轴
     z = r * math.sin(theta) * math.sin(phi)
 
     # location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
@@ -312,9 +312,9 @@ def randomize_camera_poses(
 
         # 目标点与轻微抖动
         # tgt = target.GetAttribute("xformOp:translate").Get()
-        tgt = look_at
-        jitter = lambda: rnd(look_at_offset[0], look_at_offset[1])
-        look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
+        # tgt = look_at
+        # jitter = lambda: rnd(look_at_offset[0], look_at_offset[1])
+        # look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
 
         # 随机机位（Y-UP）
         roll = random.uniform(-15,15)

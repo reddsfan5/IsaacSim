@@ -8,7 +8,7 @@
             "justMyCode":false,
             "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
              "--task_id", "Warship", "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
-             "--camera_yaw", "-10","10", "--camera_polar", "70","95", "--data_num", "80"]
+             "--camera_yaw", "27","27", "--camera_polar", "76","76", "--data_num", "80"]
 
 
         },

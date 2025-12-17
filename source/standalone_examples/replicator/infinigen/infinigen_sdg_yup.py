@@ -134,7 +134,11 @@ from isaacsim.core.utils.semantics import get_labels
 from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
-sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
+
+_cur_file_path = Path(__file__).resolve()
+_custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
+sys.path.append(_custom_sys_path)
+
 
 
 
@@ -573,15 +577,15 @@ def run_sdg(config,args):
         infinigen_utils.run_simulation(num_frames=20, render=True)        
         
         # Check if the render products need to be enabled for the capture
-        if disable_render_products:
-            for rp in render_products:
-                rp.hydra_texture.set_updates_enabled(True)
+        # if disable_render_products:
+        #     for rp in render_products:
+        #         rp.hydra_texture.set_updates_enabled(True)
 
 
         # Check if the render mode needs to be switched to path tracing for the capture
-        if use_path_tracing:
-            print(f"\tSwitching to PathTracing render mode")
-            carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
+        # if use_path_tracing:
+        #     print(f"\tSwitching to PathTracing render mode")
+        #     carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
 
         # Capture frames with the objects in the air
         # for i in range(num_floating_captures_per_env):
@@ -664,8 +668,6 @@ def run_sdg(config,args):
             )
 
 
-
-            # rep.orchestrator.step(rt_subframes=rt_subframes, delta_time=0)
             
             simulation_app.update()
             capture_one_frame(rt_subframes,step_delta_time,pause_timeline=True,wait_after=wait_after_each_capture)

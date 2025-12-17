@@ -1,16 +1,18 @@
-import omni
-from pxr import UsdGeom, Gf, UsdPhysics, PhysxSchema,Sdf,Tf,UsdShade
+import asyncio
+import omni.replicator.core as rep
 
-stage = omni.usd.get_context().get_stage()
-prim = stage.GetPrimAtPath('/World/boxActor')
-# print(prim.GetPropertyNames())
-# print(prim.GetProperties())
-# print(prim.GetAttributes())
-# print(prim.GetPropertiesInNamespace('xformOp'))
-# print(prim.GetAttribute('physics:rigidBodyEnabled').Get())
-# print(prim.HasAttribute('xformOp:translate'))
-# print(prim.GetAttributes())
-# print(prim.CreateAttribute('xformOp:translate11',Sdf.ValueTypeNames.Float3))
-# print(prim.GetAllChildren())
-# attr = prim.CreateAttribute(["xformOp", "translate"], Sdf.ValueTypeNames.Float3)
-# attr.Set(Gf.Vec3f(0, 0, 10))
+async def run():
+    cam = rep.create.camera(position=(10,10,10))
+
+    rp = rep.create.render_product(cam, (1024, 512))
+
+    cam_params = rep.annotators.get("CameraParams")
+    cam_params.attach(rp)
+
+    await rep.orchestrator.step_async()
+
+    data = cam_params.get_data()
+    T_c2w = data["cameraViewTransform"]      # shape (16,) 或 (4,4) 取决于版本
+    print("cameraViewTransform:", T_c2w)
+
+asyncio.ensure_future(run())

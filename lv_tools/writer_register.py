@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import pickle
 import random
@@ -49,6 +50,9 @@ def img_arr_to_bytes(img_arr:np.ndarray):
     img_pil.save(f, format='JPEG',quality=90)
     img_bin = f.getvalue()
     return img_bin
+
+
+
 
 
 class LMDBWriter(PoseWriter):
@@ -140,6 +144,41 @@ class LMDBWriter(PoseWriter):
                 }
         return init_info
 
+    @staticmethod
+    def _xyzr_to_thetaphi(x, y, z, r):
+        if r <= 0:
+            raise ValueError("r must be > 0")
+
+        # theta
+        c = y / r
+        c = max(-1.0, min(1.0, c))           # clamp for numeric safety
+        theta = math.acos(c)
+
+        # phi
+        s = math.sin(theta)
+        if abs(s) < 1e-12:                   # pole: phi undefined
+            phi = 0.0
+        else:
+            phi = math.atan2(z, x)           # [-pi, pi]
+            if phi < 0:
+                phi += 2 * math.pi           # [0, 2pi) if you want
+
+        return theta, phi
+
+    def camera_loc_on_sphere(self,bbox_3d_info:tuple,camera_view_transform:np.ndarray):
+
+
+        _,xmin,ymin,zmin,xmax,ymax,zmax,transform_4,occlusionRatio = bbox_3d_info
+        center = ((xmin + xmax) / 2,(ymin + ymax) / 2,(zmin + zmax) / 2)
+        V = np.array(camera_view_transform).reshape(4,4)
+        camera_loc = np.linalg.inv(V)[3, :3]   # 相机世界坐标（行向量约定）
+        r = math.sqrt(sum([(camera_loc[i]-center[i])**2 for i in range(3)]))
+        polar,yaw = self._xyzr_to_thetaphi(camera_loc[0]-center[0],camera_loc[1]-center[1],camera_loc[2]-center[2],r)
+        polar_deg = polar * 180 / math.pi
+        yaw_deg = yaw * 180 / math.pi
+        return polar_deg,yaw_deg,r
+
+
 
     def _get_idToLabels(self,idToLabels_ori:dict):
         idToLabels = {}
@@ -161,7 +200,7 @@ class LMDBWriter(PoseWriter):
     def write(self,data:dict):
                 # Iterate over the render products
         for rp_name, annotators_data in data["renderProducts"].items():
-
+            data_dict = {}
             # Process the frame data of the current render product
             bounding_box_3d_data = annotators_data[self.BB3D_ANNOT_NAME]
             camera_params_data = annotators_data[self.CAM_PARAMS_ANNOT_NAME]
@@ -186,13 +225,22 @@ class LMDBWriter(PoseWriter):
 
             if not is_ann_valid(self._frame_data, truncation_ratio=self._truncation_ratio, visibility_ratio=self._visibility_ratio,rotate_threshold=self._rotate_threshold):
                 continue 
+            
+            
+            camera_view_transform = camera_params_data['cameraViewTransform']
+            bbox_3d_info = bounding_box_3d_data['data'][0]
+            polar,yaw,r = self.camera_loc_on_sphere(bbox_3d_info,camera_view_transform)
+            data_dict['camera_polar_yaw'] = (int(polar),int(yaw))
+            data_dict['camera_r'] = round(r,3)
+            
+            
             add_cuboid_27(self._frame_data)
             add_vfov(self._frame_data)
             img_bin = img_arr_to_bytes(rgb_data)
 
-            data_dict = {'img':img_bin}
+            data_dict['img'] = img_bin
 
-
+            
             # bbox 2d
             seg_id_to_labels = self._get_idToLabels(semantic_seg_data['idToLabels'])
             seg_label_to_ids = self._cal_labelToIds(seg_id_to_labels)
