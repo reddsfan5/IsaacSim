@@ -134,7 +134,7 @@ from isaacsim.core.utils.semantics import get_labels
 from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
-
+from isaacsim.storage.native import get_assets_root_path
 _cur_file_path = Path(__file__).resolve()
 _custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
 sys.path.append(_custom_sys_path)
@@ -167,7 +167,7 @@ WriterRegistry.register(KPSWriter)
     if "KPSWriter" not in WriterRegistry._default_writers
     else None)
 
-def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map:dict)->list[UsdShade.Material]:
+def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map:MaterialTexture)->list[UsdShade.Material]:
 
     '''
     耦合当前配置文件的业务逻辑函数
@@ -179,14 +179,14 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
 
     omni_pbr_materials = []
     for _ in range(materials_control_config['pbr']['num']):
+
         mat_name,material_cur = mat_map.choice()
         
-        # texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
+        # texture_path = str(random.choice(texture_paths))
         texture_path = material_cur.get('col')
         normal_texture_path = material_cur.get('nrm')
         roughness_texture_path = material_cur.get('rough')
         metallic_texture_path = material_cur.get('refl')
-
         project_uvw = random.choice([True, False])
         pbr_base_name = f"omni_pbr_{mat_name.replace('-','_')}"
         metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
@@ -206,6 +206,18 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
                                                     normalmap_texture_path=normal_texture_path,
                                                     metallic_texture_path=metallic_texture_path,
                                                     reflectionroughness_texture_path=roughness_texture_path)
+        # omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
+        #                                     texture_path,
+        #                                     metallic_constant,
+        #                                     reflection_roughness,
+        #                                     scale,
+        #                                     translate,
+        #                                     project_uvw,
+        #                                     normalmap_texture_path=None,
+        #                                     metallic_texture_path=None,
+        #                                     reflectionroughness_texture_path=None)
+        
+        
         omni_pbr_materials.append(omni_pbr_material)
     return omni_pbr_materials
 
@@ -432,7 +444,7 @@ def run_sdg(config,args):
     
     # Gradually increase the number of distractors
     env_count = 0
-
+    dome_textures = [str(sky_path) for sky_path in Path('/data2/isaacsim/bg_img/skybox').rglob('*') if sky_path.suffix in (".hdr",".exr")]
 
     while capture_counter < total_captures:
         if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
@@ -466,8 +478,17 @@ def run_sdg(config,args):
 
 
         # Load the new environment
-        print(f"[SDG-Infinigen] Loading environment: {env_url}")
+        # print(f"[SDG-Infinigen] Loading environment: {env_url}")
+
+
         infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
+
+        infinigen_utils.set_transform_attributes(prim=stage.GetPrimAtPath('/Environment'),scale=Gf.Vec3f(.2,.2,.2))
+
+        
+
+
+
 
         # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
         print(f"[SDG-Infinigen] Setting up the environment")
@@ -476,7 +497,8 @@ def run_sdg(config,args):
 
 
 
-
+        dome_light_prim = stage.GetPrimAtPath('/Replicator/DomeLight_Xform/DomeLight')
+        dome_light_prim.GetAttribute('inputs:texture:file').Set(random.choice(dome_textures))
         #Get the plane prim 
         match_string = random.choice(["TableDining"])
         # match_string = random.choice(["TableDining",'floor'])
@@ -493,7 +515,7 @@ def run_sdg(config,args):
 
         # random asset plain
 
-        bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
+        bind_materials_to_assets(plane_prims,omni_pbr_materials,is_maintain_material_structure=True)
         plane_prim = random.choice(plane_prims)
 
 
@@ -502,7 +524,7 @@ def run_sdg(config,args):
             infinigen_utils.asset_size_adaptive(asset_to_adapt)
         
         # translate the env location to make the plane under target prim
-        infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
+        # infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
 
 
         # ⭐⭐我们的主体asset的位置⭐⭐
@@ -520,7 +542,7 @@ def run_sdg(config,args):
 
 
         target_asset_center = infinigen_utils.calculate_asset_world_center(target_assets[0])
-        print('[[middle]]',tuple(target_asset_center))
+        # print('[[middle]]',tuple(target_asset_center))
         # Mesh distractors
         print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
 
@@ -565,7 +587,7 @@ def run_sdg(config,args):
 
 
         print(f"\tRandomizing dome lights")
-        rep.utils.send_og_event(event_name="randomize_dome_lights")
+        # rep.utils.send_og_event(event_name="randomize_dome_lights")
 
         print(f"\tRandomizing shape distractor colors")
         rep.utils.send_og_event(event_name="randomize_shape_distractor_colors")
@@ -649,8 +671,11 @@ def run_sdg(config,args):
 
             # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
             bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
+
             bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
-            
+
+
+
             # todo random visibility ,may result in unexpected exit
             # if i%20 == 0:
             #     infinigen_utils.random_visibility("/Distractors")

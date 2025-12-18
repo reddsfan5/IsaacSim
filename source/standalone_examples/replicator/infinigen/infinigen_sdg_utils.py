@@ -889,7 +889,7 @@ def register_dome_light_randomizer() -> None:
         assets_root_path + "/NVIDIA/Assets/Skies/Night/moonlit_golf_4k.hdr",
     ]
     with rep.trigger.on_custom_event(event_name="randomize_dome_lights"):
-        rep.create.light(light_type="Dome", texture=rep.distribution.choice(dome_textures))
+        rep.create.light(light_type="Dome", texture=rep.distribution.choice(dome_textures),rotation=(-90,0,0))
 
 
 def register_shape_distractors_color_randomizer(shape_distractors: list[Usd.Prim]) -> None:
