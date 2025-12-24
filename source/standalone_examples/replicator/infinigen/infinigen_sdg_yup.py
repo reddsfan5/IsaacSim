@@ -28,7 +28,7 @@ from threading import local
 import yaml
 from isaacsim import SimulationApp
 import asyncio
-
+import random
 
 
 def progress_callback(current_step: int, total: int):
@@ -182,12 +182,15 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
 
         mat_name,material_cur = mat_map.choice()
         
-        # texture_path = str(random.choice(texture_paths))
-        texture_path = material_cur.get('col')
-        normal_texture_path = material_cur.get('nrm')
-        roughness_texture_path = material_cur.get('rough')
-        metallic_texture_path = material_cur.get('refl')
-        project_uvw = random.choice([True, False])
+        # texture_path = random.choice([str(random.choice(texture_paths)),material_cur.get('col')])
+        texture_path = str(random.choice(texture_paths))
+        
+        # # texture_path = material_cur.get('col')
+        # normal_texture_path = material_cur.get('nrm')
+        # roughness_texture_path = material_cur.get('rough')
+        # metallic_texture_path = material_cur.get('refl')
+        # project_uvw = random.choice([True, False])
+        project_uvw = False
         pbr_base_name = f"omni_pbr_{mat_name.replace('-','_')}"
         metallic_constant = random.uniform(*materials_control_config['pbr']['metallic_constant'])
         reflection_roughness = random.uniform(*materials_control_config['pbr']['reflection_roughness'])
@@ -196,26 +199,26 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
         translate = random.randint(*materials_control_config['pbr']['translate'])
         
         pbr_material_prim_path = omni.usd.get_stage_next_free_path(stage,os.path.join(materials_control_config['pbr']['materials_root'],pbr_base_name),False)
-        omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
-                                                    texture_path,
-                                                    metallic_constant,
-                                                    reflection_roughness,
-                                                    scale,
-                                                    translate,
-                                                    project_uvw,
-                                                    normalmap_texture_path=normal_texture_path,
-                                                    metallic_texture_path=metallic_texture_path,
-                                                    reflectionroughness_texture_path=roughness_texture_path)
         # omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
-        #                                     texture_path,
-        #                                     metallic_constant,
-        #                                     reflection_roughness,
-        #                                     scale,
-        #                                     translate,
-        #                                     project_uvw,
-        #                                     normalmap_texture_path=None,
-        #                                     metallic_texture_path=None,
-        #                                     reflectionroughness_texture_path=None)
+        #                                             texture_path,
+        #                                             metallic_constant,
+        #                                             reflection_roughness,
+        #                                             scale,
+        #                                             translate,
+        #                                             project_uvw,
+        #                                             normalmap_texture_path=normal_texture_path,
+        #                                             metallic_texture_path=metallic_texture_path,
+        #                                             reflectionroughness_texture_path=roughness_texture_path)
+        omni_pbr_material = create_pbr_with_texture(pbr_material_prim_path,
+                                            texture_path,
+                                            metallic_constant,
+                                            reflection_roughness,
+                                            scale,
+                                            translate,
+                                            project_uvw,
+                                            normalmap_texture_path=None,
+                                            metallic_texture_path=None,
+                                            reflectionroughness_texture_path=None)
         
         
         omni_pbr_materials.append(omni_pbr_material)
@@ -513,6 +516,15 @@ def run_sdg(config,args):
             ] 
         )
 
+
+        wall_prims = infinigen_utils.find_matching_prims(
+            match_strings=['wall'], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
+            '/Environment/TableDiningFactory_3810673__spawn_asset_8768607__001',    # dining_room_4
+            '/Environment/TableDiningFactory_6160158__spawn_asset_9053640__001',     # dining_room_5
+            '/Environment/TableDiningFactory_5756319__spawn_asset_664843__001',     # dining_room_6
+            '/Environment/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS',   # dining_room_8
+            ] 
+        )
         # random asset plain
 
         bind_materials_to_assets(plane_prims,omni_pbr_materials,is_maintain_material_structure=True)
@@ -673,7 +685,7 @@ def run_sdg(config,args):
             bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
 
             bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
-
+            UsdShade.MaterialBindingAPI(wall_prims[0]).Bind(random.choice(omni_pbr_materials),bindingStrength=UsdShade.Tokens.strongerThanDescendants)
 
 
             # todo random visibility ,may result in unexpected exit
