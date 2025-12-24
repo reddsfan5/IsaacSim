@@ -56,6 +56,16 @@ def img_arr_to_bytes(img_arr:np.ndarray):
 
 
 class LMDBWriter(PoseWriter):
+
+    RGB_ANNOT_NAME = "rgb"
+    CAM_PARAMS_ANNOT_NAME = "camera_params"
+    CUBOID_KEYPOINTS_ORDER_DEFAULT = ["Center", "LDB", "LDF", "LUB", "LUF", "RDB", "RDF", "RUB", "RUF"]
+    CUBOID_KEYPOINT_COLORS = ["white", "red", "green", "blue", "yellow", "cyan", "magenta", "orange", "purple"]
+    CUBOID_EDGE_COLORS = {"front": "red", "back": "blue", "connecting": "green"}
+
+
+
+    BB3D_ANNOT_NAME = "bounding_box_3d_fast"
     BOUNDING_BOX_2D = 'bounding_box_2d_tight_fast'
     SEMANTIC_SEGMENTATION = 'semantic_segmentation'
 
@@ -164,19 +174,6 @@ class LMDBWriter(PoseWriter):
                 phi += 2 * math.pi           # [0, 2pi) if you want
 
         return theta, phi
-
-    # def camera_loc_on_sphere(self,bbox_3d_info:tuple,camera_view_transform:np.ndarray):
-
-
-    #     _,xmin,ymin,zmin,xmax,ymax,zmax,transform_4,occlusionRatio = bbox_3d_info
-    #     center = ((xmin + xmax) / 2,(ymin + ymax) / 2,(zmin + zmax) / 2)
-    #     V = np.array(camera_view_transform).reshape(4,4)
-    #     camera_loc = np.linalg.inv(V)[3, :3]   # 相机世界坐标（行向量约定）
-    #     r = math.sqrt(sum([(camera_loc[i]-center[i])**2 for i in range(3)]))
-    #     polar,yaw = self._xyzr_to_thetaphi(camera_loc[0]-center[0],camera_loc[1]-center[1],camera_loc[2]-center[2],r)
-    #     polar_deg = polar * 180 / math.pi
-    #     yaw_deg = yaw * 180 / math.pi
-    #     return polar_deg,yaw_deg,r
 
 
     def camera_loc_on_sphere(self,center_target:tuple,camera_view_transform:np.ndarray):

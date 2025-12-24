@@ -30,37 +30,6 @@ from isaacsim import SimulationApp
 import asyncio
 
 
-
-def progress_callback(current_step: int, total: int):
-    # Show progress
-    print(f"{current_step} of {total}")
-
-async def convert_asset_to_usd(input_asset_path, output_asset_path):
-    asset_converter_obj = AssetConverterContext()
-    asset_converter_obj.single_mesh = True
-    # asset_converter_obj.use_meter_as_world_unit = True
-    asset_converter_obj.merge_all_meshes = True
-    asset_converter_obj.convert_stage_up_z = False
-    asset_converter_obj.bake_mdl_material = True
-    asset_converter_obj.embed_mdl_in_usd = True  # Deprecated.
-
-
-
-    task_manager = converter.get_instance()
-    task = task_manager.create_converter_task(input_asset_path, output_asset_path, progress_callback,asset_converter_obj)
-    
-    
-    success = await task.wait_until_finished()
-    if not success:
-        # detailed_status_code = task.get_status()
-        detailed_status_error_string = task.get_error_message()
-        carb.log_error(detailed_status_error_string)
-
-
-
-
-
-
 # Check if there are any config files (yaml or json) are passed as arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", required=True, help="Yaml include specific config parameters")
@@ -74,7 +43,7 @@ parser.add_argument("--local_glb_path",help='Local path to the glb files',type=s
 parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
 parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
-
+parser.add_argument("--add_angle",help='angle compliment',type=str)
 
 
 
@@ -93,12 +62,6 @@ if args.config and os.path.isfile(args.config):
             print(f"[SDG-Infinigen] Config file {args.config} is not json or yaml, will use default config")
 else:
     print(f"[SDG-Infinigen] Config file {args.config} does not exist, will use default config")
-
-
-
-
-
-
 
 #  Update the default config dict with the external one
 config = args_config
@@ -134,38 +97,46 @@ from isaacsim.core.utils.semantics import get_labels
 from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
+import omni.kit.asset_converter as converter
+from omni.kit.asset_converter import AssetConverterContext
+
 
 _cur_file_path = Path(__file__).resolve()
 _custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
 sys.path.append(_custom_sys_path)
 
-
-
-
-
-
 import infinigen_sdg_utils as infinigen_utils
-import omni.kit.asset_converter as converter
-from omni.kit.asset_converter import AssetConverterContext
-
-
 
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
 from lv_tools.writer_register import LMDBWriter,KPSWriter
 
 
-WriterRegistry.register(LMDBWriter)
-(
-    WriterRegistry._default_writers.append("LMDBWriter")
-    if "LMDBWriter" not in WriterRegistry._default_writers
-    else None)
 
-WriterRegistry.register(KPSWriter)
-(
-    WriterRegistry._default_writers.append("KPSWriter")
-    if "KPSWriter" not in WriterRegistry._default_writers
-    else None)
+def progress_callback(current_step: int, total: int):
+    # Show progress
+    print(f"{current_step} of {total}")
+
+
+async def convert_asset_to_usd(input_asset_path, output_asset_path):
+    asset_converter_obj = AssetConverterContext()
+    asset_converter_obj.single_mesh = True
+    # asset_converter_obj.use_meter_as_world_unit = True
+    asset_converter_obj.merge_all_meshes = True
+    asset_converter_obj.convert_stage_up_z = False
+    asset_converter_obj.bake_mdl_material = True
+    asset_converter_obj.embed_mdl_in_usd = True  # Deprecated.
+
+    task_manager = converter.get_instance()
+    task = task_manager.create_converter_task(input_asset_path, output_asset_path, progress_callback,asset_converter_obj)
+    
+    success = await task.wait_until_finished()
+    if not success:
+        # detailed_status_code = task.get_status()
+        detailed_status_error_string = task.get_error_message()
+        carb.log_error(detailed_status_error_string)
+
+
 
 def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map:dict)->list[UsdShade.Material]:
 
@@ -218,15 +189,21 @@ def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool
 
 
 
-
-
-
 # Run the SDG pipeline on the scenarios
 def run_sdg(config,args):
 
-    # ⭐命令行调整配置⭐
-    # config['capture']['camera_loc_yaw_range'] = args.camera_yaw
-    # config['capture']['polar_angle_range'] = args.camera_polar
+    WriterRegistry.register(LMDBWriter)
+    (
+    WriterRegistry._default_writers.append("LMDBWriter")
+        if "LMDBWriter" not in WriterRegistry._default_writers
+        else None)
+
+    WriterRegistry.register(KPSWriter)
+    (
+    WriterRegistry._default_writers.append("KPSWriter")
+        if "KPSWriter" not in WriterRegistry._default_writers
+        else None)
+
 
     # ⭐加载配置⭐
     # Load the config parameters
@@ -256,12 +233,21 @@ def run_sdg(config,args):
 
     if (input_path:=args.local_glb_path) and os.path.isfile(input_path):
         usd_asset_dir = Path(config['global']['usd_asset_root'] + f'/{args.task_id}')
+        usd_mediate_dir = Path(config['global']['usd_asset_root'] + f'/{args.task_id}_tem')
         if not usd_asset_dir.exists():
             usd_asset_dir.mkdir(exist_ok=True,parents=True)
 
-        output_path = str(usd_asset_dir / f"{Path(input_path).stem}.usd")
+        if not usd_mediate_dir.exists():
+            usd_mediate_dir.mkdir(exist_ok=True,parents=True)
 
-        asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(input_path, output_path))
+        mediate_asset_path = str(usd_mediate_dir / f"{Path(input_path).stem}.usd")
+        output_path = str(usd_asset_dir / f"{Path(input_path).stem}.usd")
+        # 二次转换
+        # 第一次是glb->usd，无法实现彻底的mesh合并，导致bbox计算错误。
+        # 第二次是 usd->usd,可以实现彻底的mesh合并，bbox计算正确。
+
+        asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(input_path, mediate_asset_path))
+        asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(mediate_asset_path, output_path))
 
         labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
                                 "label": infinigen_utils.valid_stage_name(str(args.task_id)),
@@ -271,7 +257,6 @@ def run_sdg(config,args):
 
     else:
         return
-        # labeled_assets_config = config.get("labeled_assets", {})
 
 
     mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
