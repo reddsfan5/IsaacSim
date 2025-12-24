@@ -262,7 +262,6 @@ def run_sdg(config,args):
         output_path = str(usd_asset_dir / f"{Path(input_path).stem}.usd")
 
         asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(input_path, output_path))
-        # simulation_app.close()
 
         labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
                                 "label": infinigen_utils.valid_stage_name(str(args.task_id)),
@@ -498,8 +497,10 @@ def run_sdg(config,args):
 
 
         for asset_to_adapt in target_assets:
+            
             infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
             infinigen_utils.asset_size_adaptive(asset_to_adapt)
+            
         
         # translate the env location to make the plane under target prim
         infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
@@ -776,26 +777,26 @@ def main():
     print(f"[SDG-Infinigen] SDG pipeline finished.")
 
 
-    if args.remote_save_root: # For remote save copy
-    #     shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
+    # if args.remote_save_root: # For remote save copy
+    # #     shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
 
-    #     with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
-    #         f.write('done')
-        print("=====> o3d合成数据迁移开始")
-        end_flag_path = os.path.join(lmdb_output_dir, "o3d_done.txt")
-        if not os.path.exists(end_flag_path):
-            with open(end_flag_path,'w',encoding='utf8') as f:
-                f.write('done')
-        print(f"=====> o3d合成数据迁移开始: {args.remote_save_root}")
-        o3d_syn_data_copy_to_local(
-            config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
-            lmdb_output_dir, args.remote_save_root) # o3d合成数据迁移到训练机器username, password, lmdb_output_dir, remote_save_root)
-        print(f"=====> o3d合成数据迁移完成: {args.remote_save_root}")
-        print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy开始")
-        o3d_syn_data_copy_to_local(
-            config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
-            end_flag_path, args.remote_save_root, copy_status=True)
-        print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy完成")
+    # #     with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
+    # #         f.write('done')
+    #     print("=====> o3d合成数据迁移开始")
+    #     end_flag_path = os.path.join(lmdb_output_dir, "o3d_done.txt")
+    #     if not os.path.exists(end_flag_path):
+    #         with open(end_flag_path,'w',encoding='utf8') as f:
+    #             f.write('done')
+    #     print(f"=====> o3d合成数据迁移开始: {args.remote_save_root}")
+    #     o3d_syn_data_copy_to_local(
+    #         config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
+    #         lmdb_output_dir, args.remote_save_root) # o3d合成数据迁移到训练机器username, password, lmdb_output_dir, remote_save_root)
+    #     print(f"=====> o3d合成数据迁移完成: {args.remote_save_root}")
+    #     print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy开始")
+    #     o3d_syn_data_copy_to_local(
+    #         config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
+    #         end_flag_path, args.remote_save_root, copy_status=True)
+    #     print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy完成")
 
 
 

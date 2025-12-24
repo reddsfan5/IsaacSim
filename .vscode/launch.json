@@ -7,8 +7,8 @@
             "cwd":"${workspaceFolder}",
             "justMyCode":false,
             "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "Warship", "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
-             "--camera_yaw", "27","27", "--camera_polar", "76","76", "--data_num", "80"]
+             "--task_id", "bianxieshi", "--local_glb_path", "/data2/isaacsim/assets/tem/bianxieshi/bianxieshi.usd",  
+             "--camera_yaw", "0","360", "--camera_polar", "85","89", "--data_num", "80"]
 
 
         },

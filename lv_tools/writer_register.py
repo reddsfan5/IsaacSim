@@ -165,19 +165,30 @@ class LMDBWriter(PoseWriter):
 
         return theta, phi
 
-    def camera_loc_on_sphere(self,bbox_3d_info:tuple,camera_view_transform:np.ndarray):
+    # def camera_loc_on_sphere(self,bbox_3d_info:tuple,camera_view_transform:np.ndarray):
 
 
-        _,xmin,ymin,zmin,xmax,ymax,zmax,transform_4,occlusionRatio = bbox_3d_info
-        center = ((xmin + xmax) / 2,(ymin + ymax) / 2,(zmin + zmax) / 2)
+    #     _,xmin,ymin,zmin,xmax,ymax,zmax,transform_4,occlusionRatio = bbox_3d_info
+    #     center = ((xmin + xmax) / 2,(ymin + ymax) / 2,(zmin + zmax) / 2)
+    #     V = np.array(camera_view_transform).reshape(4,4)
+    #     camera_loc = np.linalg.inv(V)[3, :3]   # 相机世界坐标（行向量约定）
+    #     r = math.sqrt(sum([(camera_loc[i]-center[i])**2 for i in range(3)]))
+    #     polar,yaw = self._xyzr_to_thetaphi(camera_loc[0]-center[0],camera_loc[1]-center[1],camera_loc[2]-center[2],r)
+    #     polar_deg = polar * 180 / math.pi
+    #     yaw_deg = yaw * 180 / math.pi
+    #     return polar_deg,yaw_deg,r
+
+
+    def camera_loc_on_sphere(self,center_target:tuple,camera_view_transform:np.ndarray):
+
+
         V = np.array(camera_view_transform).reshape(4,4)
         camera_loc = np.linalg.inv(V)[3, :3]   # 相机世界坐标（行向量约定）
-        r = math.sqrt(sum([(camera_loc[i]-center[i])**2 for i in range(3)]))
-        polar,yaw = self._xyzr_to_thetaphi(camera_loc[0]-center[0],camera_loc[1]-center[1],camera_loc[2]-center[2],r)
+        r = math.sqrt(sum([(camera_loc[i]-center_target[i])**2 for i in range(3)]))
+        polar,yaw = self._xyzr_to_thetaphi(camera_loc[0]-center_target[0],camera_loc[1]-center_target[1],camera_loc[2]-center_target[2],r)
         polar_deg = polar * 180 / math.pi
         yaw_deg = yaw * 180 / math.pi
         return polar_deg,yaw_deg,r
-
 
 
     def _get_idToLabels(self,idToLabels_ori:dict):
@@ -228,8 +239,9 @@ class LMDBWriter(PoseWriter):
             
             
             camera_view_transform = camera_params_data['cameraViewTransform']
-            bbox_3d_info = bounding_box_3d_data['data'][0]
-            polar,yaw,r = self.camera_loc_on_sphere(bbox_3d_info,camera_view_transform)
+            # bbox_3d_info = bounding_box_3d_data['data'][0]
+            center_target = self._frame_data['objects'][0]['cuboid_keypoints_world_frame'][0]
+            polar,yaw,r = self.camera_loc_on_sphere(center_target,camera_view_transform)
             data_dict['camera_polar_yaw'] = (int(polar),int(yaw))
             data_dict['camera_r'] = round(r,3)
             
