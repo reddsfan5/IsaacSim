@@ -43,12 +43,10 @@ parser.add_argument(
 parser.add_argument("--task_id", required=True, help="Subforder name")
 parser.add_argument("--remote_save_root", type=str, help='The remote root folder to save the generated dataset')
 parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str,required=True)
-parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
+parser.add_argument("--camera_yaw",help='Camera azimuth range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
 parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
-parser.add_argument("--isextend",help='is extend mode',type=bool,default=False)
-
 
 print("Received args:", sys.argv)
  
@@ -56,9 +54,15 @@ print("Received args:", sys.argv)
 if sys.argv[1:]:
     args, unknown = parser.parse_known_args()
 else:
-    args_list = ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "bianxieshi", "--local_glb_path", "/data2/isaacsim/assets/converted_usd/007/008/moto.usd",  
-             "--camera_yaw", "0","360", "--camera_polar", "60","90", "--data_num", "200"]
+    args_list = [
+             "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
+             "--task_id", "moto_test", 
+             "--local_glb_path", "/data2/isaacsim/assets/converted_usd/007/008/moto.usd",  
+             "--camera_yaw", "0","360", 
+             "--camera_polar", "60","90", 
+             "--data_num", "200",
+             "--add_angle",'{"patches_params": [{"polar_range": [20, 50], "azimuth_range": [20, 50], "distance_range": [1, 1.1], "num": 10}, {"polar_range": [80, 90], "azimuth_range": [80, 90], "distance_range": [1.8, 1.9], "num": 50}]}'
+             ]
     
     args, unknown = parser.parse_known_args(args_list)
 
@@ -119,7 +123,7 @@ _custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("sou
 sys.path.append(_custom_sys_path)
 
 import infinigen_sdg_utils as infinigen_utils
-from pose_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch
+from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
 from lv_tools.writer_register import LMDBWriter,KPSWriter
@@ -323,19 +327,6 @@ def run_sdg(config,args):
         render_products.append(rp)
     print(f"[SDG-Infinigen] Created {len(render_products)} render products")
 
-    # Only create the writers if there are render products to attach to
-    # writers = []
-    # if render_products:
-    #     for writer_config in writers_config:
-    #         writer_config['kwargs']['task_id'] = args.task_id
-
-    #         writer = infinigen_utils.setup_writer(writer_config)
-    #         if writer:
-    #             writer.attach(render_products)
-    #             writers.append(writer)
-    #             print(f"\t {writer_config['type']}'s out dir: {writer_config.get('kwargs', {}).get('output_dir', '')}")
-    # print(f"[SDG-Infinigen] Created {len(writers)} writers")
-
     
     
     # ⭐加载干扰物⭐
@@ -424,34 +415,15 @@ def run_sdg(config,args):
     # Gradually increase the number of distractors
     env_count = 0
 
-
+    json_str = args.add_angle
 
     data_gen_list = []
-    if not args.isextend:
-        
-        '''
-        数据生成Iterable和writer初始化
-        '''
+    if not json_str:
 
-        gen_dict = {}
-
-        json_str = args.add_angle
-        if json_str:
-            angle_dict = json.loads(json_str)
-            patches = []
-            for patch_params in angle_dict['patch_params']:
-                patch = SpherePatch(
-                    polar_range=patch_params['polar_range'],
-                    azimuth_range=patch_params['azimuth_range'],
-                    distance_range=patch_params['distance_range'],
-                )
-                patches.append(patch)
-              
-        else:
-            patches = [SpherePatch(
-                    polar_range=args.camera_polar,
-                    azimuth_range=args.camera_yaw
-                )]
+        patches = [SpherePatch(
+                polar_range=args.camera_polar,
+                azimuth_range=args.camera_yaw
+            )]
 
         train_dict = {'gener':RandomUniformSphereCoord(
                 patches=patches,total_samples=capture_config.get("total_captures", 0)),
@@ -465,22 +437,20 @@ def run_sdg(config,args):
         data_gen_list.append(val_dict)
 
     else:
-        json_str = args.add_angle
-        if json_str:
-            angle_dict = json.loads(json_str)
-            patch_quota = []
-            for patch_params in angle_dict['patch_params']:
-                patch = SpherePatch(
-                    polar_range=patch_params['polar_range'],
-                    azimuth_range=patch_params['azimuth_range'],
-                    distance_range=patch_params['distance_range'],
-                )
-                num = int(patch_params.get('num',100))
+        jd = json.loads(json_str)
+        patch_quota = []
+        for patch_params in jd['patches_params']:
+            patch = SpherePatch(
+                polar_range=patch_params['polar_range'],
+                azimuth_range=patch_params['azimuth_range'],
+                distance_range=patch_params.get('distance_range',[1.2,2.0]),
+            )
+            num = int(patch_params.get('num',1000))
 
-                patch_quota.append((patch,num))
+            patch_quota.append((patch,num))
 
-        gen_dict['gener'] = RandomQuotaSphereCoord(patch_quota)
-        gen_dict['writers_init'] = lambda : writers_init(writers_config,render_products,mode='train')
+        gen_dict ={'gener':RandomQuotaSphereCoord(patch_quota),
+        'writers_init': lambda : writers_init(writers_config,render_products,mode='train')}
         data_gen_list.append(gen_dict)
 
         
