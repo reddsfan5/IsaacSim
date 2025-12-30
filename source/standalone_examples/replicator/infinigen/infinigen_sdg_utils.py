@@ -20,6 +20,7 @@ import re
 from itertools import chain
 import time
 import pathlib
+from networkx import radius
 import numpy as np
 import omni.kit.app
 import omni.kit.commands
@@ -36,7 +37,7 @@ import sys
 
 
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics,UsdShade,UsdSemantics
-from typing import Union
+from typing import Generator, Iterator, Union
 
 import math
 import random
@@ -142,70 +143,56 @@ def add_colliders_and_rigid_body_dynamics(prim: Usd.Prim, disable_gravity: bool 
 
 
 
-
-# ------------------------------------------------------------
-## 公共小工具
-# ------------------------------------------------------------
-def _clamp01(x: float) -> float:
-    return max(0.0, min(1.0, x))
-
-def _safe_normalize(v: Gf.Vec3d) -> Gf.Vec3d:
-    l = v.GetLength()
-    if l < 1e-12:
-        return Gf.Vec3d(0.0, 0.0, 0.0)
-    return v / l
-
-def _signed_angle_deg(a: Gf.Vec3d, b: Gf.Vec3d, axis: Gf.Vec3d) -> float:
-    """返回从 a 旋到 b 围绕 axis 的有符号角度（度）。"""
-    a_n = _safe_normalize(a)
-    b_n = _safe_normalize(b)
-    axis_n = _safe_normalize(axis)
-    cross = a_n ^ b_n  # 向量叉乘（Gf 使用 ^）
-    dot = _clamp01(a_n * b_n)  # 点乘（范围到 [0,1] 防数值误差）
-    unsigned = math.degrees(math.atan2(_safe_normalize(cross).GetLength() * (a_n ^ b_n).GetLength(), dot)) if dot < 1.0 else 0.0
-    # 符号由 right-hand rule 决定：axis · (a × b)
-    sign = 1.0 if (axis_n * cross) >= 0.0 else -1.0
-    return unsigned * sign
-
-
-
-def get_random_location_on_sphere(
-    origin: Tuple[float, float, float],
-    radius_range: Tuple[float, float],
-    polar_angle_range: Tuple[float, float],
-    camera_loc_yaw_range: Tuple[float, float]=(0,360)
-) -> Tuple[Gf.Vec3d, Gf.Quatf]:
-    """
-    生成 Y-UP 场景中的随机相机位姿，使相机看向 origin。
-    额外增加两个极端极角下相机出现的概率。
+def sphere_coord_to_world_loc(origin:tuple[float,float,float],polar:float,azimuth:float,radius:float):
+    '''
     球坐标约定（Y 为极轴）：
-      θ: 极角，0° 在 +Y，180° 在 -Y
-      φ: 方位角，绕 Y 轴，从 +X 方向起，向 +Z 递增（右手系）
+      极角，0° 在 +Y，180° 在 -Y
+      方位角，绕 Y 轴，从 +X 方向起，向 +Z 递增（右手系）
+    '''
 
-    返回: (location: Gf.Vec3d, orientation: Gf.Quatf)
-    """
-    # 1.calculate camera location on up-sphere
     # 角度转弧度
-    theta_min = math.radians(polar_angle_range[0])
-    theta_max = math.radians(polar_angle_range[1])
+    polar = math.radians(polar)
 
-    theta = random.uniform(theta_min, theta_max)
+    azimuth = math.radians(azimuth)
 
-    phi = random.uniform(2.0*math.pi*camera_loc_yaw_range[0]/360, 2.0*math.pi*camera_loc_yaw_range[1]/360)  # random.uniform(0.0, 2.0 * math.pi)
-
-    # 半径
-    r = random.uniform(radius_range[0], radius_range[1])
 
     # Y-UP 球坐标 -> 笛卡尔
-    x = r * math.sin(theta) * math.cos(phi)  
-    y = r * math.cos(theta) #  Y 是极轴
-    z = r * math.sin(theta) * math.sin(phi)
+    x = radius * math.sin(polar) * math.cos(azimuth)  
+    y = radius * math.cos(polar) #  Y 是极轴
+    z = radius * math.sin(polar) * math.sin(azimuth)
 
     # location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
 
     return origin[0] + x, origin[1] + y, origin[2] + z
 
 
+def get_random_sphere_coord(radius_range: Tuple[float, float], polar_range: Tuple[float, float], azimuth_range: Tuple[float, float]=(0,360)):
+    # 角度转弧度
+    polar_min = math.radians(polar_range[0])
+    polar_max = math.radians(polar_range[1])
+
+    polar = random.uniform(polar_min, polar_max)
+
+    azimuth = random.uniform(2.0*math.pi*azimuth_range[0]/360, 2.0*math.pi*azimuth_range[1]/360)  # random.uniform(0.0, 2.0 * math.pi)
+
+    # 半径
+    r = random.uniform(radius_range[0], radius_range[1])
+
+    return polar,azimuth,r
+
+
+def get_random_location_around_target(
+    origin: Tuple[float, float, float],
+    radius_range: Tuple[float, float],
+    polar_angle_range: Tuple[float, float],
+    camera_azimuth_range: Tuple[float, float]=(0,360)
+) -> Tuple[float,float,float]:
+
+    polar,azimuth,radius = get_random_sphere_coord(radius_range,polar_angle_range,camera_azimuth_range)
+    return sphere_coord_to_world_loc(origin,polar,azimuth,radius)
+
+
+    
 # 计算方位角（绕Y轴旋转）
 def calculate_yaw(x0, y0, z0, target_x, target_y, target_z):
     '''
@@ -253,6 +240,7 @@ def calculate_pitch(x0, y0, z0, target_x, target_y, target_z):
 # 主函数，计算相机的intrinsic旋转欧拉角order->Y,X,Z,then trans to extrinsic ,order -> Z,X,Y
 def calculate_camera_pitch_yaw(x0, y0, z0, target_x, target_y, target_z):
     # 计算方位角和俯仰角
+    # 生成 Y-UP 场景中的随机相机位姿，使相机看向 origin。
     yaw = calculate_yaw(x0, y0, z0, target_x, target_y, target_z)
     pitch = calculate_pitch(x0, y0, z0, target_x, target_y, target_z)
     
@@ -290,64 +278,96 @@ def camera_prim_set(cam_prim:Usd.Prim,verticalAperture:float=24.0,
 
 
 
+# def randomize_camera_poses(
+#     cameras: List[Usd.Prim],
+#     targets: List[Usd.Prim],
+#     distance_range: Tuple[float, float],
+#     polar_angle_range: Tuple[float, float] = (0, 180),
+#     look_at_offset: Tuple[float, float] = (0,0),
+#     look_at: tuple = (0,0,0),
+#     camera_loc_yaw_range: Tuple[float, float]=(0,360)
+    
+# ) -> None:
+#     """
+#     为一组相机生成随机机位（Y-UP）。每台相机看向随机目标点。
+#     额外增加两个极端极角下相机出现的概率。
+#       - distance_range: (近, 远)
+#       - polar_angle_range: (θ_min°, θ_max°)；0°= +Y，180°= -Y
+#       - look_at_offset: 在目标点 xyz 上加入的随机抖动范围（同一范围）
+#     """
+#     rnd = random.uniform  # 小写方便
+#     for cam in cameras:
+#         target = random.choice(targets)
+
+#         # 目标点与轻微抖动
+#         # tgt = target.GetAttribute("xformOp:translate").Get()
+#         # tgt = look_at
+#         # jitter = lambda: rnd(look_at_offset[0], look_at_offset[1])
+#         # look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
+
+#         # 随机机位（Y-UP）
+#         roll = random.uniform(-15,15)
+
+
+
+#         if polar_angle_range[1]==90 and polar_angle_range[0]==0:
+#             if random.uniform(0,1) < 0.15:
+#                 cur_polar_angle_range = (0, 15)
+#                 roll = random.uniform(0,360)
+#             elif random.uniform(0,1) < 0.3:
+#                 cur_polar_angle_range = (75, 95)
+#             else:
+#                 cur_polar_angle_range = polar_angle_range
+
+#         else:
+#             cur_polar_angle_range = polar_angle_range
+        
+
+        
+#         loc= get_random_location_around_target(
+#             origin=look_at,
+#             radius_range=distance_range,
+#             polar_angle_range=cur_polar_angle_range,
+#             camera_azimuth_range=camera_loc_yaw_range
+#         )
+        
+#         pitch,yaw = calculate_camera_pitch_yaw(*loc,*look_at)
+#         # 写回（此函数由isaacsim项目里提供）
+#         # set_transform_attributes(cam, location=loc, orientation=euler_to_quaternion(*euler_angle))
+        
+#         # print(f'roll:{roll}')
+        
+#         set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d((pitch,yaw,roll)),rotate_order="ZXY")
+
+
+
+
+
 def randomize_camera_poses(
     cameras: List[Usd.Prim],
-    targets: List[Usd.Prim],
-    distance_range: Tuple[float, float],
-    polar_angle_range: Tuple[float, float] = (0, 180),
-    look_at_offset: Tuple[float, float] = (0,0),
-    look_at: tuple = (0,0,0),
-    camera_loc_yaw_range: Tuple[float, float]=(0,360)
-    
+    pose_gener:Iterator,
+    look_at: tuple = (0,0,0),  
 ) -> None:
-    """
-    为一组相机生成随机机位（Y-UP）。每台相机看向随机目标点。
-      - distance_range: (近, 远)
-      - polar_angle_range: (θ_min°, θ_max°)；0°= +Y，180°= -Y
-      - look_at_offset: 在目标点 xyz 上加入的随机抖动范围（同一范围）
-    """
-    rnd = random.uniform  # 小写方便
-    for cam in cameras:
-        target = random.choice(targets)
 
-        # 目标点与轻微抖动
-        # tgt = target.GetAttribute("xformOp:translate").Get()
-        # tgt = look_at
-        # jitter = lambda: rnd(look_at_offset[0], look_at_offset[1])
-        # look_at = (tgt[0] + jitter(), tgt[1] + jitter(), tgt[2] + jitter())
+    for cam in cameras:
 
         # 随机机位（Y-UP）
         roll = random.uniform(-15,15)
+        polar,azimuth,radius = next(pose_gener)
 
+        print(f'polar:{polar},azimuth:{azimuth},radius:{radius}')
 
+        loc = sphere_coord_to_world_loc(look_at,polar,azimuth,radius)  
 
-        if polar_angle_range[1]==90 and polar_angle_range[0]==0:
-            if random.uniform(0,1) < 0.15:
-                cur_polar_angle_range = (0, 15)
-                roll = random.uniform(0,360)
-            elif random.uniform(0,1) < 0.3:
-                cur_polar_angle_range = (75, 95)
-            else:
-                cur_polar_angle_range = polar_angle_range
-
-        else:
-            cur_polar_angle_range = polar_angle_range
-        
-
-        
-        loc= get_random_location_on_sphere(
-            origin=look_at,
-            radius_range=distance_range,
-            polar_angle_range=cur_polar_angle_range,
-            camera_loc_yaw_range=camera_loc_yaw_range
-        )
         pitch,yaw = calculate_camera_pitch_yaw(*loc,*look_at)
         # 写回（此函数由isaacsim项目里提供）
         # set_transform_attributes(cam, location=loc, orientation=euler_to_quaternion(*euler_angle))
         
-        # print(f'roll:{roll}')
-        
         set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d((pitch,yaw,roll)),rotate_order="ZXY")
+
+
+
+
 
 
 
@@ -1149,3 +1169,13 @@ def file_uri_to_path(uri: str) -> str:
 
     # Convert slashes for Windows
     return os.path.normpath(path)
+
+
+
+
+
+
+
+
+
+

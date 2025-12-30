@@ -14,8 +14,8 @@ from lv_tools.cores.img_io import cv2imwrite, img_byte_to_arr
 from lv_tools.cores.json_io import load_json_to_dict, save_json
 from lv_tools.data_parsing.labelme_json_constructor import construct_labelme_jd,construct_one_shape
 from omni.replicator.core.scripts.functional import write_image, write_json
-# from omni.replicator.core.writers import Writer
 from omni.replicator.core.annotators import AnnotatorRegistry
+# from omni.replicator.core.writers import Writer
 # from omni.replicator.core.writers_default import BasicWriter
 from isaacsim.replicator.writers import PoseWriter
 from lv_tools.dataset_io.data_saver import LmdbSaver
@@ -78,21 +78,15 @@ class LMDBWriter(PoseWriter):
                  expect_data_num:int=10000,
                  task_id:str= '0000',
                  *args,**kwargs):
-        # self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
-        # self._output_dir = os.path.join(kwargs.get('output_dir',''), str(task_id))
+ 
         self._output_dir = kwargs.get('output_dir','')
-        num_str = f'{round(expect_data_num/10000)}W' if int(expect_data_num/10000)>=1 else str(expect_data_num)
-        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_train_lmdb'
-        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_val_lmdb'
         self._truncation_ratio = truncation_ratio
         self._visibility_ratio = visibility_ratio
         self._rotate_threshold = rotate_threshold
-
-        self._train_saver = LmdbSaver(_train_lmdb_path,cache_capacity)
-        self._val_saver = LmdbSaver(_val_lmdb_path,cache_capacity)
+        self._data_saver = LmdbSaver(self._output_dir,cache_capacity)
         self._show_bin = show_bin
         self._val_count = 0
-        self._train_count = 0
+        self._data_count = 0
 
         super().__init__(*args,**kwargs)
 
@@ -239,6 +233,9 @@ class LMDBWriter(PoseWriter):
             # bbox_3d_info = bounding_box_3d_data['data'][0]
             center_target = self._frame_data['objects'][0]['cuboid_keypoints_world_frame'][0]
             polar,yaw,r = self.camera_loc_on_sphere(center_target,camera_view_transform)
+
+            print(f'写入角度参数：polar:{round(polar,2)},azimuth:{round(yaw,2)},radius:{round(r,2)}')
+
             data_dict['camera_polar_yaw'] = (int(polar),int(yaw))
             data_dict['camera_r'] = round(r,3)
             
@@ -294,27 +291,20 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
-            if self._val_count<1000 and random.uniform(0,1)<0.1:
-                self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
-                self._val_count += 1
-            else:
 
-                self._train_saver.put(str(self._train_count).zfill(10).encode('utf8'),pickle_bytes)
-                self._train_count += 1
-                if self._train_count%10==0:
-                    print(f'current training data num:[ {self._train_count}]')
+            self._data_saver.put(str(self._data_count).zfill(10).encode('utf8'),pickle_bytes)
+            self._data_count += 1
+            if self._data_count%10==0:
+                print(f'current training data num:[ {self._data_count}]')
 
             
-
-
-
 
             # show samples
 
             if int(self._frame_id)%self._show_bin==0:
                 try:
             
-                    show_dir = os.path.join(self._output_dir,'samples')
+                    show_dir = os.path.join(os.path.dirname(self._output_dir),'samples')
                     if not os.path.exists(show_dir):
                         os.mkdir(show_dir)
                     
@@ -359,7 +349,7 @@ class LMDBWriter(PoseWriter):
             self._frame_id += 1
             
             
-            init_config_file_path = os.path.join(self._output_dir,'config.json')
+            init_config_file_path = os.path.join(os.path.dirname(self._output_dir),'config.json')
             if not os.path.exists(init_config_file_path):
 
                 label = self._frame_data['objects'][0]['label']
@@ -474,3 +464,5 @@ class KPSWriter(PoseWriter):
 
 
 
+if __name__ == '__main__':
+    print(LMDBWriter.__name__)

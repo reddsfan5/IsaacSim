@@ -18,6 +18,8 @@
 
 
 import argparse
+import copy
+from datetime import datetime
 import json
 import math
 import os
@@ -25,6 +27,7 @@ from pathlib import Path
 import shutil
 import sys
 from threading import local
+import time
 import yaml
 from isaacsim import SimulationApp
 import asyncio
@@ -44,12 +47,20 @@ parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,defa
 parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
+parser.add_argument("--isextend",help='is extend mode',type=bool,default=False)
 
 
+print("Received args:", sys.argv)
+ 
 
-print("Received args:", sys.argv)  # 检查是否打印出 launch.json 中的参数
-args, unknown = parser.parse_known_args()
-
+if sys.argv[1:]:
+    args, unknown = parser.parse_known_args()
+else:
+    args_list = ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
+             "--task_id", "bianxieshi", "--local_glb_path", "/data2/isaacsim/assets/converted_usd/007/008/moto.usd",  
+             "--camera_yaw", "0","360", "--camera_polar", "60","90", "--data_num", "200"]
+    
+    args, unknown = parser.parse_known_args(args_list)
 
 args_config = {}
 if args.config and os.path.isfile(args.config):
@@ -85,33 +96,36 @@ import carb
 import carb.settings
 
 import numpy as np
-import omni.client
-import omni.kit
 import omni.kit.app
-import omni.physx
 import omni.replicator.core as rep
-import omni.timeline
+
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
-from isaacsim.core.utils.semantics import get_labels
+
 from pxr import UsdGeom,Gf,Usd,UsdShade
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
 import omni.kit.asset_converter as converter
 from omni.kit.asset_converter import AssetConverterContext
 
+from isaacsim.core.utils.semantics import get_labels
+import omni.client
+import omni.kit
+import omni.physx
+import omni.timeline
 
 _cur_file_path = Path(__file__).resolve()
 _custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
 sys.path.append(_custom_sys_path)
 
 import infinigen_sdg_utils as infinigen_utils
-
+from pose_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
 from lv_tools.writer_register import LMDBWriter,KPSWriter
 
-
+def _get_time_str():
+    return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H')
 
 def progress_callback(current_step: int, total: int):
     # Show progress
@@ -189,21 +203,26 @@ def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool
 
 
 
+def writers_init(writers_config,render_products,mode='train'):
+    writers = []
+    for writer_config in writers_config:
+        writer_config = copy.deepcopy(writer_config)
+        writer_config['kwargs']['task_id'] = args.task_id
+        output_root = writer_config['kwargs']['output_dir']
+        writer_config['kwargs']['output_dir'] =  output_root +f'/{os.path.basename(output_root)}_{_get_time_str()}_{mode}_lmdb'
+        writer = infinigen_utils.setup_writer(writer_config)
+        if writer:
+            writer.attach(render_products)
+            writers.append(writer)
+            print(f"\t {writer_config['type']}'s out dir: {writer_config.get('kwargs', {}).get('output_dir', '')}")
+    print(f"[SDG-Infinigen] Created {len(writers)} writers")
+    return writers
+
+
+
+
 # Run the SDG pipeline on the scenarios
 def run_sdg(config,args):
-
-    WriterRegistry.register(LMDBWriter)
-    (
-    WriterRegistry._default_writers.append("LMDBWriter")
-        if "LMDBWriter" not in WriterRegistry._default_writers
-        else None)
-
-    WriterRegistry.register(KPSWriter)
-    (
-    WriterRegistry._default_writers.append("KPSWriter")
-        if "KPSWriter" not in WriterRegistry._default_writers
-        else None)
-
 
     # ⭐加载配置⭐
     # Load the config parameters
@@ -213,22 +232,17 @@ def run_sdg(config,args):
     )
     capture_config = config.get("capture", {})
     writers_config = config.get("writers", {})
-    # print('220*+*+**+*+*+*+*+*+*:capture配置')
-    # print(capture_config)
     distractors_config = config.get("distractors", {})
     
     materials_control_config = config.get("materials_control",{})
 
-    # ⭐创建stage，并设置向上轴⭐
-    # Create a new stage
-    print(f"[SDG-Infinigen] Creating a new stage")
-
-
     if args.data_num:
         capture_config['total_captures'] = args.data_num
 
-
-    # asset格式转换，并存放到预期路径下，给出存放后的路径位置 。
+    # ⭐asset格式转换，并存放到预期路径下，给出存放后的路径位置 。⭐
+    # 二次转换
+        # 第一次是glb->usd，无法实现彻底的mesh合并，导致bbox计算错误。
+        # 第二次是 usd->usd,可以实现彻底的mesh合并，bbox计算正确。
 
 
     if (input_path:=args.local_glb_path) and os.path.isfile(input_path):
@@ -242,9 +256,6 @@ def run_sdg(config,args):
 
         mediate_asset_path = str(usd_mediate_dir / f"{Path(input_path).stem}.usd")
         output_path = str(usd_asset_dir / f"{Path(input_path).stem}.usd")
-        # 二次转换
-        # 第一次是glb->usd，无法实现彻底的mesh合并，导致bbox计算错误。
-        # 第二次是 usd->usd,可以实现彻底的mesh合并，bbox计算正确。
 
         asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(input_path, mediate_asset_path))
         asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(mediate_asset_path, output_path))
@@ -261,13 +272,17 @@ def run_sdg(config,args):
 
     mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
 
+    # ⭐创建stage，并设置向上轴⭐
+    # Create a new stage
     
     
 
     stage = omni.usd.get_context().get_stage()
     # Set stage Up axis
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
-
+    print(f"[SDG-Infinigen] Creating a new stage")
+    
+    
     # Disable capture on play
     rep.orchestrator.set_capture_on_play(False)
 
@@ -309,17 +324,17 @@ def run_sdg(config,args):
     print(f"[SDG-Infinigen] Created {len(render_products)} render products")
 
     # Only create the writers if there are render products to attach to
-    writers = []
-    if render_products:
-        for writer_config in writers_config:
-            writer_config['kwargs']['task_id'] = args.task_id
+    # writers = []
+    # if render_products:
+    #     for writer_config in writers_config:
+    #         writer_config['kwargs']['task_id'] = args.task_id
 
-            writer = infinigen_utils.setup_writer(writer_config)
-            if writer:
-                writer.attach(render_products)
-                writers.append(writer)
-                print(f"\t {writer_config['type']}'s out dir: {writer_config.get('kwargs', {}).get('output_dir', '')}")
-    print(f"[SDG-Infinigen] Created {len(writers)} writers")
+    #         writer = infinigen_utils.setup_writer(writer_config)
+    #         if writer:
+    #             writer.attach(render_products)
+    #             writers.append(writer)
+    #             print(f"\t {writer_config['type']}'s out dir: {writer_config.get('kwargs', {}).get('output_dir', '')}")
+    # print(f"[SDG-Infinigen] Created {len(writers)} writers")
 
     
     
@@ -381,18 +396,14 @@ def run_sdg(config,args):
     num_dropped_captures_per_env = capture_config.get("num_dropped_captures_per_env", 0)
 
     
-    
-    # todo warmup
 
-    # warmup_updates = int(capture_config.get("warmup_updates", 3))
-    # warmup_dummy_steps = int(capture_config.get("warmup_dummy_steps", 1))
     step_delta_time = float(capture_config.get("step_delta_time", 0.0))
     wait_after_each_capture = bool(capture_config.get("wait_after_each_capture", True))
     
     materials = []
 
 
-    # # 将USD文件作为引用添加到当前舞台
+    # # 将材质USD文件作为引用添加到当前舞台
     usd_file_path = materials_control_config['classic_materials']['usd_file_path']
     classic_materials_prim_path = materials_control_config['classic_materials']['scope_path']
     add_reference_to_stage(usd_path=usd_file_path, prim_path=classic_materials_prim_path)
@@ -402,10 +413,6 @@ def run_sdg(config,args):
 
     omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,mat_map=mat_map)
     materials.extend(omni_pbr_materials)
-
-    # bind_materials_to_assets(target_assets,materials,is_maintain_material_structure=True)
-
-
     
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
     # Start the SDG loop
@@ -418,278 +425,304 @@ def run_sdg(config,args):
     env_count = 0
 
 
-    while capture_counter < total_captures:
-        if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
-            break
 
-
-
-        # Load the next environment
-        env_url = next(env_cycle)
-
-
-        infinigen_utils.remove_prim('/Assets',simulation_app)
+    data_gen_list = []
+    if not args.isextend:
         
-        target_assets = []
+        '''
+        数据生成Iterable和writer初始化
+        '''
+
+        gen_dict = {}
+
+        json_str = args.add_angle
+        if json_str:
+            angle_dict = json.loads(json_str)
+            patches = []
+            for patch_params in angle_dict['patch_params']:
+                patch = SpherePatch(
+                    polar_range=patch_params['polar_range'],
+                    azimuth_range=patch_params['azimuth_range'],
+                    distance_range=patch_params['distance_range'],
+                )
+                patches.append(patch)
+              
+        else:
+            patches = [SpherePatch(
+                    polar_range=args.camera_polar,
+                    azimuth_range=args.camera_yaw
+                )]
+
+        train_dict = {'gener':RandomUniformSphereCoord(
+                patches=patches,total_samples=capture_config.get("total_captures", 0)),
+        'writers_init':lambda : writers_init(writers_config,render_products,mode='train')}
+
+        data_gen_list.append(train_dict)
+
+
+        val_dict ={'gener':IterPatchSampler(patches=patches),
+        'writers_init':lambda : writers_init(writers_config,render_products,mode='val')}
+        data_gen_list.append(val_dict)
+
+    else:
+        json_str = args.add_angle
+        if json_str:
+            angle_dict = json.loads(json_str)
+            patch_quota = []
+            for patch_params in angle_dict['patch_params']:
+                patch = SpherePatch(
+                    polar_range=patch_params['polar_range'],
+                    azimuth_range=patch_params['azimuth_range'],
+                    distance_range=patch_params['distance_range'],
+                )
+                num = int(patch_params.get('num',100))
+
+                patch_quota.append((patch,num))
+
+        gen_dict['gener'] = RandomQuotaSphereCoord(patch_quota)
+        gen_dict['writers_init'] = lambda : writers_init(writers_config,render_products,mode='train')
+        data_gen_list.append(gen_dict)
+
         
-        manual_label_config = labeled_assets_config.get("manual_label", [])
-        original_label_config = labeled_assets_config.get("original_label", [])
-        
-        
-        
-        if manual_label_config:
-            manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
-            target_assets.extend(manual_falling_assets)
-        if original_label_config:
-            original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
-            target_assets.extend(original_assets)
-        
-        bind_materials_to_assets(
-            target_assets,classic_materials,
-            is_maintain_material_structure=False,usd_materials_num=10)
-
-
-        # Load the new environment
-        print(f"[SDG-Infinigen] Loading environment: {env_url}")
-        infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
-
-        # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
-        print(f"[SDG-Infinigen] Setting up the environment")
-        infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
-        simulation_app.update()
 
 
 
-
-        #Get the plane prim 
-        match_string = random.choice(["TableDining"])
-        # match_string = random.choice(["TableDining",'floor'])
-        root_path= '/Environment'
-
-        plane_prims = infinigen_utils.find_matching_prims(
-            match_strings=[match_string], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
-            '/Environment/TableDiningFactory_3810673__spawn_asset_8768607__001',    # dining_room_4
-            '/Environment/TableDiningFactory_6160158__spawn_asset_9053640__001',     # dining_room_5
-            '/Environment/TableDiningFactory_5756319__spawn_asset_664843__001',     # dining_room_6
-            '/Environment/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS',   # dining_room_8
-            ] 
-        )
-
-        # random asset plain
-
-        bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
-        plane_prim = random.choice(plane_prims)
-
-
-        for asset_to_adapt in target_assets:
-            
-            infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
-            infinigen_utils.asset_size_adaptive(asset_to_adapt)
-            
-        
-        # translate the env location to make the plane under target prim
-        infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
-
-
-        # ⭐⭐我们的主体asset的位置⭐⭐
-        # Get the spawn areas as offseted location ranges from the working area (min_x, min_y, min_z, max_x, max_y, max_z)
-        print(f"\tRandomizing {len(target_assets)} target assets around the working area")
-
-        # ⭐视窗相机位置和角度设置⭐
-        working_area_loc_abs = (0,0,0)
-        if debug_mode:
-            camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
-            print(f"相机位置:{camera_loc}")
-            set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
-
-
-
-
-        target_asset_center = infinigen_utils.calculate_asset_world_center(target_assets[0])
-        print('[[middle]]',tuple(target_asset_center))
-        # Mesh distractors
-        print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
-
-        mesh_loc_x0,mesh_loc_x1 = distractors_config['mesh_distractors']['location_range']['x']
-        mesh_loc_y0,mesh_loc_y1 = distractors_config['mesh_distractors']['location_range']['y']
-        mesh_loc_z0,mesh_loc_z1 = distractors_config['mesh_distractors']['location_range']['z']
-        mesh_dis_scale_range = distractors_config['mesh_distractors']['scale_range']
-        mesh_loc_range = infinigen_utils.offset_range((mesh_loc_x0,mesh_loc_y0,mesh_loc_z0,mesh_loc_x1,mesh_loc_y1,mesh_loc_z1), working_area_loc_abs)
-        infinigen_utils.randomize_poses(
-            mesh_distractors,
-            location_range=mesh_loc_range,
-            rotation_range=(0, 25),
-            scale_range=mesh_dis_scale_range,
-        )
-
-        # Shape distractors
-        print(f"\tRandomizing {len(shape_distractors)} shape distractors around the working area")
-
-        shape_loc_x0,shape_loc_x1 = distractors_config['shape_distractors']['location_range']['x']
-        shape_loc_y0,shape_loc_y1 = distractors_config['shape_distractors']['location_range']['y']
-        shape_loc_z0,shape_loc_z1 = distractors_config['shape_distractors']['location_range']['z']
-        shape_dis_scale_range = distractors_config['shape_distractors']['scale_range']
-
-        shape_loc_range = infinigen_utils.offset_range((shape_loc_x0,shape_loc_y0,shape_loc_z0,shape_loc_x1,shape_loc_y1,shape_loc_z1), working_area_loc_abs)
-        infinigen_utils.randomize_poses(
-            shape_distractors,
-            location_range=shape_loc_range,
-            rotation_range=(0, 25),
-            scale_range=shape_dis_scale_range,
-        )
-        
-        # simulation_app.update()
-
-        print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-        lights_loc_range = infinigen_utils.offset_range(capture_config.get('lights_offset_range',(-1.5, -0.1, -1.5, 1.5, 0.8, 1.5)), working_area_loc_abs)
-        infinigen_utils.randomize_lights(
-            scene_lights,
-            location_range=lights_loc_range,
-            intensity_range=capture_config.get('lights_intensity_range',(4000, 6000)),
-            color_range=capture_config.get('lights_color_range',(0.1, 0.1, 0.1, 0.9, 0.9, 0.9)),
-        )
-
-
-        print(f"\tRandomizing dome lights")
-        rep.utils.send_og_event(event_name="randomize_dome_lights")
-
-        print(f"\tRandomizing shape distractor colors")
-        rep.utils.send_og_event(event_name="randomize_shape_distractor_colors")
-
-        # Run the physics simulation for a few frames to solve any collisions
-        # # 先用一些仿真帧稳定落位/碰撞
-        print(f"\tFixing collisions through physics simulation")
-        simulation_app.update()
-        infinigen_utils.run_simulation(num_frames=20, render=True)        
-        
-        # Check if the render products need to be enabled for the capture
-        # if disable_render_products:
-        #     for rp in render_products:
-        #         rp.hydra_texture.set_updates_enabled(True)
-
-
-        # Check if the render mode needs to be switched to path tracing for the capture
-        # if use_path_tracing:
-        #     print(f"\tSwitching to PathTracing render mode")
-        #     carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
-
-        # Capture frames with the objects in the air
-        # for i in range(num_floating_captures_per_env):
-        #     # Check if the total captures have been reached
-        #     if capture_counter >= total_captures:
-        #         break
-           
-            
-        #     # Randomize the camera poses
-        #     print(f"\tRandomizing {len(cameras)} camera poses")
-            
-
-        #     infinigen_utils.randomize_camera_poses(
-        #         cameras, target_assets, camera_distance_to_target_range, polar_angle_range=capture_config['polar_angle_range'],look_at=tuple(target_asset_center),
-        #         look_at_offset = capture_config['camera_look_at_target_offset']
-        #     )
-            
-        #     simulation_app.update()
-            
-        #     print(
-        #         f"\tCapturing floating assets {i+1}/{num_floating_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
-        #     )
-            
-            
-        #     infinigen_utils.run_simulation(num_frames=200, render=True)
-        #     rep.orchestrator.step(rt_subframes=rt_subframes, delta_time=0.0)
-        #     capture_counter += 1
-
-        # Check if the render products need to be disabled until the next capture
-        # if disable_render_products:
-        #     for rp in render_products:
-        #         rp.hydra_texture.set_updates_enabled(False)
-
-        # # Check if the render mode needs to be switched back to raytracing until the next capture
-        # if use_path_tracing:
-        #     carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
-
-        # print(f"\tRunning the simulation")
-        # infinigen_utils.run_simulation(num_frames=200, render=False)
-
-        # Check if the render products need to be enabled for the capture
-        if disable_render_products:
-            for rp in render_products:
-                rp.hydra_texture.set_updates_enabled(True)
-
-        # Check if the render mode needs to be switched to path tracing for the capture
-        if use_path_tracing:
-            carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
-
-        for i in range(num_dropped_captures_per_env):
-            # Check if the total captures have been reached
-            if capture_counter >= total_captures:
-                break
-
+    for data_gener in data_gen_list:
+        writers = data_gener['writers_init']()
+        gener = iter(data_gener['gener'])
+        while True:
             if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
                 break
-            # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
-            print(f"\tRandomizing camera poses")
 
-            distractors = stage.GetPrimAtPath('/Distractors')
 
-            # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
-            bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
-            bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
+
+
+            # Load the next environment
+            env_url = next(env_cycle)
+
+
+            infinigen_utils.remove_prim('/Assets',simulation_app)
             
-            # todo random visibility ,may result in unexpected exit
-            # if i%20 == 0:
-            #     infinigen_utils.random_visibility("/Distractors")
-                
-            # 取余 纬度转极角
-            # polar_range = [90-polar for polar in args.camera_polar]
-            # polar_range.sort()
+            target_assets = []
             
-            infinigen_utils.randomize_camera_poses(
-                cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=args.camera_polar,camera_loc_yaw_range=args.camera_yaw,look_at=tuple(target_asset_center),
-                look_at_offset = capture_config['camera_look_at_target_offset']
-            )
-            print(
-                f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
-            )
+            manual_label_config = labeled_assets_config.get("manual_label", [])
+            original_label_config = labeled_assets_config.get("original_label", [])
+            
+            
+            
+            if manual_label_config:
+                manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
+                target_assets.extend(manual_falling_assets)
+            if original_label_config:
+                original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
+                target_assets.extend(original_assets)
+            
+            bind_materials_to_assets(
+                target_assets,classic_materials,
+                is_maintain_material_structure=False,usd_materials_num=10)
 
 
-            
+            # Load the new environment
+            print(f"[SDG-Infinigen] Loading environment: {env_url}")
+            infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
+
+            # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
+            print(f"[SDG-Infinigen] Setting up the environment")
+            infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
             simulation_app.update()
-            capture_one_frame(rt_subframes,step_delta_time,pause_timeline=True,wait_after=wait_after_each_capture)
-            capture_counter += 1    
-
-        # Check if the render products need to be disabled until the next capture
-        if disable_render_products:
-            for rp in render_products:
-                rp.hydra_texture.set_updates_enabled(False)
-
-        # Check if the render mode needs to be switched back to raytracing until the next capture
-        if use_path_tracing:
-            carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
-
-        env_count += 1
 
 
-    #todo 跑一段物理（掉落阶段）
-    print(f"\tRunning the simulation (drop phase)")
-    infinigen_utils.run_simulation(num_frames=200, render=False)
+
+
+            #Get the plane prim 
+            match_string = random.choice(["TableDining"])
+            # match_string = random.choice(["TableDining",'floor'])
+            root_path= '/Environment'
+
+            plane_prims = infinigen_utils.find_matching_prims(
+                match_strings=[match_string], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
+                '/Environment/TableDiningFactory_3810673__spawn_asset_8768607__001',    # dining_room_4
+                '/Environment/TableDiningFactory_6160158__spawn_asset_9053640__001',     # dining_room_5
+                '/Environment/TableDiningFactory_5756319__spawn_asset_664843__001',     # dining_room_6
+                '/Environment/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS',   # dining_room_8
+                ] 
+            )
+
+            # random asset plain
+
+            bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
+            plane_prim = random.choice(plane_prims)
+
+
+            for asset_to_adapt in target_assets:
+                
+                infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,1,1]))
+                infinigen_utils.asset_size_adaptive(asset_to_adapt)
+                
+            
+            # translate the env location to make the plane under target prim
+            infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
+
+
+            # ⭐⭐我们的主体asset的位置⭐⭐
+            # Get the spawn areas as offseted location ranges from the working area (min_x, min_y, min_z, max_x, max_y, max_z)
+            print(f"\tRandomizing {len(target_assets)} target assets around the working area")
+
+            # ⭐视窗相机位置和角度设置⭐
+            working_area_loc_abs = (0,0,0)
+            if debug_mode:
+                camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
+                print(f"相机位置:{camera_loc}")
+                set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
+
+
+
+
+            target_asset_center = infinigen_utils.calculate_asset_world_center(target_assets[0])
+            print('[[middle]]',tuple(target_asset_center))
+            # Mesh distractors
+            print(f"\tRandomizing {len(mesh_distractors)} mesh distractors around the working area")
+
+            mesh_loc_x0,mesh_loc_x1 = distractors_config['mesh_distractors']['location_range']['x']
+            mesh_loc_y0,mesh_loc_y1 = distractors_config['mesh_distractors']['location_range']['y']
+            mesh_loc_z0,mesh_loc_z1 = distractors_config['mesh_distractors']['location_range']['z']
+            mesh_dis_scale_range = distractors_config['mesh_distractors']['scale_range']
+            mesh_loc_range = infinigen_utils.offset_range((mesh_loc_x0,mesh_loc_y0,mesh_loc_z0,mesh_loc_x1,mesh_loc_y1,mesh_loc_z1), working_area_loc_abs)
+            infinigen_utils.randomize_poses(
+                mesh_distractors,
+                location_range=mesh_loc_range,
+                rotation_range=(0, 25),
+                scale_range=mesh_dis_scale_range,
+            )
+
+            # Shape distractors
+            print(f"\tRandomizing {len(shape_distractors)} shape distractors around the working area")
+
+            shape_loc_x0,shape_loc_x1 = distractors_config['shape_distractors']['location_range']['x']
+            shape_loc_y0,shape_loc_y1 = distractors_config['shape_distractors']['location_range']['y']
+            shape_loc_z0,shape_loc_z1 = distractors_config['shape_distractors']['location_range']['z']
+            shape_dis_scale_range = distractors_config['shape_distractors']['scale_range']
+
+            shape_loc_range = infinigen_utils.offset_range((shape_loc_x0,shape_loc_y0,shape_loc_z0,shape_loc_x1,shape_loc_y1,shape_loc_z1), working_area_loc_abs)
+            infinigen_utils.randomize_poses(
+                shape_distractors,
+                location_range=shape_loc_range,
+                rotation_range=(0, 25),
+                scale_range=shape_dis_scale_range,
+            )
+            
+            # simulation_app.update()
+
+            print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
+            lights_loc_range = infinigen_utils.offset_range(capture_config.get('lights_offset_range',(-1.5, -0.1, -1.5, 1.5, 0.8, 1.5)), working_area_loc_abs)
+            infinigen_utils.randomize_lights(
+                scene_lights,
+                location_range=lights_loc_range,
+                intensity_range=capture_config.get('lights_intensity_range',(4000, 6000)),
+                color_range=capture_config.get('lights_color_range',(0.1, 0.1, 0.1, 0.9, 0.9, 0.9)),
+            )
+
+
+            print(f"\tRandomizing dome lights")
+            rep.utils.send_og_event(event_name="randomize_dome_lights")
+
+            print(f"\tRandomizing shape distractor colors")
+            rep.utils.send_og_event(event_name="randomize_shape_distractor_colors")
+
+            # Run the physics simulation for a few frames to solve any collisions
+            # # 先用一些仿真帧稳定落位/碰撞
+            print(f"\tFixing collisions through physics simulation")
+            simulation_app.update()
+            infinigen_utils.run_simulation(num_frames=20, render=True)        
+            
+
+            # Check if the render products need to be enabled for the capture
+            if disable_render_products:
+                for rp in render_products:
+                    rp.hydra_texture.set_updates_enabled(True)
+
+            # Check if the render mode needs to be switched to path tracing for the capture
+            if use_path_tracing:
+                carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
+            try:
+
+
+                for i in range(num_dropped_captures_per_env):
+                    # Check if the total captures have been reached
+                    # if capture_counter >= total_captures:
+                    #     break
+
+                    if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
+                        break
+                    # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
+                    print(f"\tRandomizing camera poses")
+
+
+                    infinigen_utils.randomize_camera_poses(
+                        cameras, gener,look_at=tuple(target_asset_center)
+                    )
+
+                    distractors = stage.GetPrimAtPath('/Distractors')
+
+                    # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
+                    bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
+                    bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
+                    
+                    # todo random visibility ,may result in unexpected exit
+                    # if i%20 == 0:
+                    #     infinigen_utils.random_visibility("/Distractors")
+                        
+                    # 取余 纬度转极角
+                    # polar_range = [90-polar for polar in args.camera_polar]
+                    # polar_range.sort()
+                    
+
+
+
+                    print(
+                        f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
+                    )
+                    simulation_app.update()
+                    capture_one_frame(rt_subframes,step_delta_time,pause_timeline=True,wait_after=wait_after_each_capture)
+                    capture_counter += 1   
+            except StopIteration:
+                break
+
+
+                
+ 
+
+            # Check if the render products need to be disabled until the next capture
+            if disable_render_products:
+                for rp in render_products:
+                    rp.hydra_texture.set_updates_enabled(False)
+
+            # Check if the render mode needs to be switched back to raytracing until the next capture
+            if use_path_tracing:
+                carb.settings.get_settings().set("/rtx/rendermode", "RayTracedLighting")
+
+            env_count += 1
+
+
+        #todo 跑一段物理（掉落阶段）
+        print(f"\tRunning the simulation (drop phase)")
+        infinigen_utils.run_simulation(num_frames=200, render=False)
+            
         
-    
-    
-    # Wait until the data is written to the disk
-    rep.orchestrator.wait_until_complete()
-    
-    # for cur_asset in target_assets:
-    #     from isaacsim.core.utils.semantics import get_labels
-    #     label = get_labels(cur_asset)
-    #     print(label)
+        
+        # Wait until the data is written to the disk
+        rep.orchestrator.wait_until_complete()
+        
+        # for cur_asset in target_assets:
+        #     from isaacsim.core.utils.semantics import get_labels
+        #     label = get_labels(cur_asset)
+        #     print(label)
 
+        # Detach the writers
+        print(f"[SDG-Infinigen] Detaching writers")
+        for writer in writers:
+            writer.detach()
 
-    # Detach the writers
-    print(f"[SDG-Infinigen] Detaching writers")
-    for writer in writers:
-        writer.detach()
 
     # Destroy render products
     print(f"[SDG-Infinigen] Destroying render products")
@@ -748,6 +781,19 @@ def o3d_syn_data_copy_to_local(remoteip, username, passdword, syn_data_dir, targ
 
 
 def main():
+
+    WriterRegistry.register(LMDBWriter)
+    (
+    WriterRegistry._default_writers.append("LMDBWriter")
+        if "LMDBWriter" not in WriterRegistry._default_writers
+        else None)
+
+    # WriterRegistry.register(KPSWriter)
+    # (
+    # WriterRegistry._default_writers.append("KPSWriter")
+    #     if "KPSWriter" not in WriterRegistry._default_writers
+    #     else None)
+
     # Check if debug mode is enabled
     debug_mode = config.get("debug_mode", False)
 
@@ -760,30 +806,6 @@ def main():
     print(f"[SDG-Infinigen] Starting the SDG pipeline.")
     run_sdg(config,args)
     print(f"[SDG-Infinigen] SDG pipeline finished.")
-
-
-    # if args.remote_save_root: # For remote save copy
-    # #     shutil.copytree(os.path.join(config['global']['output_root'],f'{args.task_id}'),os.path.join(args.remote_save_root,f'{args.task_id}'),dirs_exist_ok=True)   
-
-    # #     with open(os.path.join(args.remote_save_root,f'{args.task_id}','o3d_done.txt'),'w',encoding='utf8') as f:
-    # #         f.write('done')
-    #     print("=====> o3d合成数据迁移开始")
-    #     end_flag_path = os.path.join(lmdb_output_dir, "o3d_done.txt")
-    #     if not os.path.exists(end_flag_path):
-    #         with open(end_flag_path,'w',encoding='utf8') as f:
-    #             f.write('done')
-    #     print(f"=====> o3d合成数据迁移开始: {args.remote_save_root}")
-    #     o3d_syn_data_copy_to_local(
-    #         config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
-    #         lmdb_output_dir, args.remote_save_root) # o3d合成数据迁移到训练机器username, password, lmdb_output_dir, remote_save_root)
-    #     print(f"=====> o3d合成数据迁移完成: {args.remote_save_root}")
-    #     print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy开始")
-    #     o3d_syn_data_copy_to_local(
-    #         config["remote"]["remoteip"], config["remote"]["username"], config["remote"]["password"], 
-    #         end_flag_path, args.remote_save_root, copy_status=True)
-    #     print(f"=====> o3d合成数据迁移status file--o3d_done.txt copy完成")
-
-
 
 
     # Make sure the app closes on completion even if in debug mode
