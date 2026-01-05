@@ -1065,7 +1065,7 @@ def remove_new_labels(prim: Usd.Prim, instance_name: str | None = None, include_
 
 
 
-def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float=0.1,target_value:float=0.35):
+def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float=0.1,target_value:float=0.2):
 
     bbox3 = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_]).ComputeWorldBound(target_prim)
     bbox_range = bbox3.ComputeAlignedRange()

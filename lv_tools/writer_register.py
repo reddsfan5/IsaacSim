@@ -22,7 +22,12 @@ from lv_tools.dataset_io.data_saver import LmdbSaver
 
 import PIL
 import io
+import base64
 
+def rand_str(length: int) -> str:
+    s = base64.b64encode(os.urandom(length)).decode("utf8")
+    s = s.replace("\\", "").replace("/", "").replace("=", "").replace("+", "")
+    return s
 
 def normalize_bbox(img_h, img_w, xmin, ymin, xmax, ymax):
     """
@@ -83,6 +88,7 @@ class LMDBWriter(PoseWriter):
         self._show_bin = show_bin
         self._val_count = 0
         self._train_count = 0
+        self._continuous_invalid_count = 0
 
         super().__init__(*args,**kwargs)
 
@@ -95,7 +101,7 @@ class LMDBWriter(PoseWriter):
         )
 
     def _get_time_str(self):
-        return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H')
+        return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d')
 
 
     def _get_init_info(self,label:str,points_27:list,scale:float=1):
@@ -226,6 +232,7 @@ class LMDBWriter(PoseWriter):
 
             # Early exist if empty frames should not be written
             if self._skip_empty_frames and num_objs == 0:
+                self._continuous_invalid_count += 1
                 continue
 
             # Create render product name subfolder if data should be separated for each render product
@@ -235,9 +242,12 @@ class LMDBWriter(PoseWriter):
 
 
             if not is_ann_valid(self._frame_data, truncation_ratio=self._truncation_ratio, visibility_ratio=self._visibility_ratio,rotate_threshold=self._rotate_threshold):
+                self._continuous_invalid_count += 1
                 continue 
             
             
+
+            self._continuous_invalid_count = 0
             camera_view_transform = camera_params_data['cameraViewTransform']
             # bbox_3d_info = bounding_box_3d_data['data'][0]
             center_target = self._frame_data['objects'][0]['cuboid_keypoints_world_frame'][0]
@@ -297,12 +307,16 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
+            
+            # rands = rand_str(5)
+            rands = ''
+
             if self._val_count<1000 and random.uniform(0,1)<0.1:
-                self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
+                self._val_saver.put((str(self._val_count).zfill(10)+rands).encode('utf8'),pickle_bytes)
                 self._val_count += 1
             else:
 
-                self._train_saver.put(str(self._train_count).zfill(10).encode('utf8'),pickle_bytes)
+                self._train_saver.put((str(self._train_count).zfill(10)+rands).encode('utf8'),pickle_bytes)
                 self._train_count += 1
                 if self._train_count%10==0:
                     print(f'current training data num:[ {self._train_count}]')
@@ -320,10 +334,10 @@ class LMDBWriter(PoseWriter):
                     show_dir = os.path.join(self._output_dir,'samples')
                     if not os.path.exists(show_dir):
                         os.mkdir(show_dir)
-                    
-                    img_ori_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'.jpg')
-                    img_draw_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_overlay.jpg')
-                    img_seg_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_seg.jpg')
+                    stem_base = str(self._frame_id).zfill(10)+rands
+                    img_ori_path = os.path.join(show_dir,stem_base+'.jpg')
+                    img_draw_path = os.path.join(show_dir,stem_base+'_overlay.jpg')
+                    img_seg_path = os.path.join(show_dir,stem_base+'_seg.jpg')
                     bgr_data = cv2.cvtColor(rgb_data,cv2.COLOR_RGB2BGR)
                     pil_img = PIL.Image.fromarray(bgr_data)
                     draw = PIL.ImageDraw.Draw(pil_img)

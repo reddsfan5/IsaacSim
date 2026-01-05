@@ -74,6 +74,7 @@ parser.add_argument("--local_glb_path",help='Local path to the glb files',type=s
 parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
 parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
+parser.add_argument("--add_angle",help='angle compliment',type=str)
 
 
 
@@ -264,7 +265,7 @@ def run_sdg(config,args):
         asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(input_path, output_path))
 
         labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
-                                "label": infinigen_utils.valid_stage_name(str(args.task_id)),
+                                "label": infinigen_utils.valid_stage_name(str(Path(input_path).stem)),   # (str(args.task_id)),
                                 "num": 1,
                                 "gravity_disabled_chance": 0}]}
 

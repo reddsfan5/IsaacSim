@@ -35,7 +35,7 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 20
+  num_dropped_captures_per_env: 200
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 5
   # Resolution of the captured frames
@@ -52,7 +52,7 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: [-0.02,0.02]
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.9,2.2]# 0.9,2.5
+  camera_distance_to_target_range: [1.5,2.5]# 0.9,2.5
   # Number of scene lights to create in the working area
   num_scene_lights: 8
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
@@ -70,7 +70,7 @@ writers:
       output_dir: *output_root
       task_id: 007
       expect_data_num: 3000
-      show_bin: 1
+      show_bin: 30
       cache_capacity: 10
       format: null # dope ; centerpose
       skip_empty_frames: true
@@ -78,6 +78,7 @@ writers:
       visibility_ratio: 0.75
       rotate_threshold: 360
       
+  
   
   # - type: BasicWriter
   #   kwargs:
@@ -183,7 +184,7 @@ distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 15
+    num: 10
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-1,1]
       y: [0,0.5]
