@@ -6,9 +6,12 @@
             "program": "${file}",
             "cwd":"${workspaceFolder}",
             "justMyCode":false,
-            "args": ["--cycle-seconds", "60", "--restart-delay", "10", "--grace-seconds", "30", "--log-dir", "/data2/logs/infinigen","--","source/standalone_examples/replicator/infinigen/infinigen_sdg_yup.py","--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
+            "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
              "--task_id", "59840", "--local_glb_path", "/data2/isaacsim/assets/converted_usd/2005547043434659840/mtfr@2005547043434659840/2005547043434659840_@_mtfr@2005547043434659840.usd",  
              "--camera_yaw", "0","360", "--camera_polar", "0","90", "--data_num", "10"]
+            // "args": ["--cycle-seconds", "60", "--restart-delay", "10", "--grace-seconds", "30", "--log-dir", "/data2/logs/infinigen","--","source/standalone_examples/replicator/infinigen/infinigen_sdg_yup.py","--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
+            //  "--task_id", "59840", "--local_glb_path", "/data2/isaacsim/assets/converted_usd/2005547043434659840/mtfr@2005547043434659840/2005547043434659840_@_mtfr@2005547043434659840.usd",  
+            //  "--camera_yaw", "0","360", "--camera_polar", "0","90", "--data_num", "10"]
 
 
         },

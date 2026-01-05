@@ -75,6 +75,7 @@ parser.add_argument("--camera_yaw",help='Camera location yaw range',nargs=2,defa
 parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
+parser.add_argument("--gpu",help='gpu select',type=int,default=0)
 
 
 
@@ -103,7 +104,7 @@ else:
 
 #  Update the default config dict with the external one
 config = args_config
-lmdb_output_dir  = os.path.join(config['writers'][0]['kwargs']['output_dir'],str(args.task_id)) 
+lmdb_output_dir = os.path.join(config['writers'][0]['kwargs']['output_dir'],str(args.task_id)) 
 
 config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
 
@@ -112,7 +113,10 @@ config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
 
 simulation_app = SimulationApp(launch_config={
     "headless": config.get("headless", False),
-    "renderer": "RealTimePathTracing"  # 选择 RT 2.0 的渲染模式
+    "renderer": "RealTimePathTracing",  # 选择 RT 2.0 的渲染模式
+    "active_gpu":args.gpu,
+    "physics_gpu":args.gpu,
+    "multi_gpu":False
 })
 
 
@@ -154,6 +158,11 @@ from omni.kit.asset_converter import AssetConverterContext
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
 from lv_tools.writer_register import LMDBWriter,KPSWriter
+
+
+# 不知这样可否缓解材质缓存压力
+random.seed(666)
+
 
 
 WriterRegistry.register(LMDBWriter)
@@ -328,7 +337,8 @@ def run_sdg(config,args):
     writers = []
     if render_products:
         for writer_config in writers_config:
-            writer_config['kwargs']['task_id'] = args.task_id
+            # writer_config['kwargs']['app'] = simulation_app
+            writer_config['kwargs']['max_data_num'] = args.data_num
 
             writer = infinigen_utils.setup_writer(writer_config)
             if writer:
@@ -645,7 +655,8 @@ def run_sdg(config,args):
             if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
                 break
             # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
-            print(f"\tRandomizing camera poses")
+            
+            # print(f"\tRandomizing camera poses")
 
             distractors = stage.GetPrimAtPath('/Distractors')
 
@@ -665,9 +676,11 @@ def run_sdg(config,args):
                 cameras, target_assets, distance_range=camera_distance_to_target_range, polar_angle_range=args.camera_polar,camera_loc_yaw_range=args.camera_yaw,look_at=tuple(target_asset_center),
                 look_at_offset = capture_config['camera_look_at_target_offset']
             )
-            print(
-                f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
-            )
+
+            if i%20==0:
+                print(
+                    f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
+                )
 
 
             

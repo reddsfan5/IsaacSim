@@ -30,6 +30,9 @@ class LmdbSaver:
         self._cache = dict()
         self._cache_capacity = cache_capacity
 
+    def __len__(self):
+        return self._cnt
+    
     @staticmethod
     def _open_lmdb(lmdb_path: Union[Path, str], map_size: int = 100 * 1024 * 1024):
         lmdb_path = Path(lmdb_path)
@@ -57,8 +60,9 @@ class LmdbSaver:
 
     def _init_cnt(self):
         txn = self._env.begin()
-        num_samples = txn.get(self.num_key.encode("utf-8"), b'0')
-        return int(num_samples.decode("utf-8"))
+        # num_samples = txn.get(self.num_key.encode("utf-8"), b'0')
+        num_samples = txn.stat()['entries']
+        return int(num_samples)
 
     def _get_cnt(self):
         self._lock.acquire()

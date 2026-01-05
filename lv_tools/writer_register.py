@@ -7,7 +7,7 @@ import traceback
 import cv2
 import time
 from datetime import datetime
-
+import sys
 import numpy as np
 from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov,calculate_kps_based_on_world_file
 from lv_tools.cores.img_io import cv2imwrite, img_byte_to_arr
@@ -70,13 +70,15 @@ class LMDBWriter(PoseWriter):
                  visibility_ratio:float=.5,
                  rotate_threshold:float=90,
                  show_bin:int=1000,
-                 expect_data_num:int=10000,
-                 task_id:str= '0000',
+                 max_data_num:int=10000,
+                #  app= None,
                  *args,**kwargs):
         # self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
         # self._output_dir = os.path.join(kwargs.get('output_dir',''), str(task_id))
         self._output_dir = kwargs.get('output_dir','')
-        num_str = f'{round(expect_data_num/10000)}W' if int(expect_data_num/10000)>=1 else str(expect_data_num)
+        # self.app = app
+        self.max_data_num = int(max_data_num)
+        num_str = f'{round(max_data_num/10000)}W' if int(max_data_num/10000)>=1 else str(max_data_num)
         _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_train_lmdb'
         _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_val_lmdb'
         self._truncation_ratio = truncation_ratio
@@ -86,8 +88,8 @@ class LMDBWriter(PoseWriter):
         self._train_saver = LmdbSaver(_train_lmdb_path,cache_capacity)
         self._val_saver = LmdbSaver(_val_lmdb_path,cache_capacity)
         self._show_bin = show_bin
-        self._val_count = 0
-        self._train_count = 0
+        self._val_count = len(self._val_saver)
+        self._train_count = len(self._train_saver)
         self._continuous_invalid_count = 0
 
         super().__init__(*args,**kwargs)
@@ -307,34 +309,36 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
-            
-            # rands = rand_str(5)
-            rands = ''
 
             if self._val_count<1000 and random.uniform(0,1)<0.1:
-                self._val_saver.put((str(self._val_count).zfill(10)+rands).encode('utf8'),pickle_bytes)
+                self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
                 self._val_count += 1
             else:
 
-                self._train_saver.put((str(self._train_count).zfill(10)+rands).encode('utf8'),pickle_bytes)
+                self._train_saver.put(str(self._train_count).zfill(10).encode('utf8'),pickle_bytes)
                 self._train_count += 1
                 if self._train_count%10==0:
-                    print(f'current training data num:[ {self._train_count}]')
+                    print(f'current training data num:[{self._train_count}]')
 
             
+            # if self._train_count >= self.max_data_num:
+            # #     self._train_saver.close()
+            # #     self._val_saver.close()
+            # #     sys.exit(99)
+            #     self.app.close()
 
 
 
 
             # show samples
 
-            if int(self._frame_id)%self._show_bin==0:
+            if int(self._train_count)%self._show_bin==0:
                 try:
             
                     show_dir = os.path.join(self._output_dir,'samples')
                     if not os.path.exists(show_dir):
                         os.mkdir(show_dir)
-                    stem_base = str(self._frame_id).zfill(10)+rands
+                    stem_base = str(self._train_count).zfill(10)
                     img_ori_path = os.path.join(show_dir,stem_base+'.jpg')
                     img_draw_path = os.path.join(show_dir,stem_base+'_overlay.jpg')
                     img_seg_path = os.path.join(show_dir,stem_base+'_seg.jpg')
