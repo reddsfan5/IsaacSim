@@ -100,6 +100,10 @@ class LmdbLoader:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.env.close()
 
+
+    def close(self):
+        self.env.close()
+
     def __iter__(self):
         return iter(self.txn.cursor())
     def iter_keys(self):

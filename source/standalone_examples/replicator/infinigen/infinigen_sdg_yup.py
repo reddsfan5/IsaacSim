@@ -18,6 +18,8 @@
 
 
 import argparse
+from datetime import datetime
+import time
 import json
 import math
 import os
@@ -28,8 +30,12 @@ from threading import local
 import yaml
 from isaacsim import SimulationApp
 import asyncio
+from tqdm import tqdm
+sys.path.append(Path.cwd().as_posix())
+from lv_tools.dataset_io.data_loader import LmdbLoader
 
-
+def get_time_str():
+    return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d')
 
 def progress_callback(current_step: int, total: int):
     # Show progress
@@ -104,12 +110,21 @@ else:
 
 #  Update the default config dict with the external one
 config = args_config
+
+
 lmdb_output_dir = os.path.join(config['writers'][0]['kwargs']['output_dir'],str(args.task_id)) 
+num_str = f'{round(args.data_num/10000)}W' if int(args.data_num/10000)>=1 else str(args.data_num)
+lmdb_common = lmdb_output_dir+f'/{os.path.basename(lmdb_output_dir)}_{num_str}_{get_time_str()}'
+train_lmdb_path = lmdb_common+'_train_lmdb'
+val_lmdb_path = lmdb_common+'_val_lmdb'
 
-config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
 
 
 
+
+config['writers'][0]['kwargs']['output_dir'] = lmdb_common
+config['writers'][0]['kwargs']['train_lmdb_path'] = train_lmdb_path
+config['writers'][0]['kwargs']['val_lmdb_path'] = val_lmdb_path
 
 simulation_app = SimulationApp(launch_config={
     "headless": config.get("headless", False),
@@ -226,7 +241,9 @@ def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool
     if wait_after:
         rep.orchestrator.wait_until_complete()
 
-
+def current_entries(lmdb_path: str) -> int:
+    with LmdbLoader(lmdb_path) as l:
+        return len(l)
 
 
 
@@ -333,6 +350,12 @@ def run_sdg(config,args):
         render_products.append(rp)
     print(f"[SDG-Infinigen] Created {len(render_products)} render products")
 
+
+
+
+
+
+
     # Only create the writers if there are render products to attach to
     writers = []
     if render_products:
@@ -403,7 +426,7 @@ def run_sdg(config,args):
     total_captures = capture_config.get("total_captures", 0)
 
     # Number of captures per environment with the objects in the air or dropped
-    num_floating_captures_per_env = capture_config.get("num_floating_captures_per_env", 0)
+    # num_floating_captures_per_env = capture_config.get("num_floating_captures_per_env", 0)
     num_dropped_captures_per_env = capture_config.get("num_dropped_captures_per_env", 0)
 
     
@@ -443,8 +466,29 @@ def run_sdg(config,args):
     # Gradually increase the number of distractors
     env_count = 0
 
+    pbar = tqdm(total=total_captures, desc="数据生成", unit="sample", dynamic_ncols=True)
+    last = current_entries(train_lmdb_path)
 
-    while capture_counter < total_captures:
+    while True:
+        print('\n'*10)
+        print(f"train_lmdb_path：[[[[[[{train_lmdb_path}]]]]]]")
+
+        print('\n'*10)
+
+
+
+        if (cur_data_num:=current_entries(train_lmdb_path)) >= total_captures:
+            print(f"当前样本量已经达到：【【{cur_data_num}】】")
+            break
+
+        delta = max(0, min(cur_data_num, total_captures) - last)
+        if delta:
+            pbar.update(delta)
+            last += delta
+        print(f'当前数据生成进度：{cur_data_num}/{total_captures}')
+
+
+
         if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
             break
 
@@ -604,7 +648,7 @@ def run_sdg(config,args):
         #     # Check if the total captures have been reached
         #     if capture_counter >= total_captures:
         #         break
-           
+        
             
         #     # Randomize the camera poses
         #     print(f"\tRandomizing {len(cameras)} camera poses")
@@ -648,11 +692,26 @@ def run_sdg(config,args):
             carb.settings.get_settings().set("/rtx/rendermode", "PathTracing")
 
         for i in range(num_dropped_captures_per_env):
+
+            cur_data_num = current_entries(train_lmdb_path)
+
+            delta = max(0, min(cur_data_num, total_captures) - last)
+            if delta:
+                pbar.update(delta)
+                last += delta            
+
+            # print(f"当前样本量已经达到：[[[[[[{cur_data_num}]]]]]]")
             # Check if the total captures have been reached
             if capture_counter >= total_captures:
                 break
 
+
+            if cur_data_num >= total_captures:
+                print(f"当前样本量已经达到：[[[[[[{cur_data_num}]]]]]]")
+                break
+
             if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
+                
                 break
             # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
             
@@ -699,7 +758,7 @@ def run_sdg(config,args):
 
         env_count += 1
 
-
+    pbar.close()
     #todo 跑一段物理（掉落阶段）
     print(f"\tRunning the simulation (drop phase)")
     infinigen_utils.run_simulation(num_frames=200, render=False)

@@ -22,7 +22,7 @@ def build_cmd(args: argparse.Namespace, target: list[str]) -> list[str]:
         raise SystemExit("未提供目标命令。用法示例：python restart_runner.py -- your_task.py --arg 1")
 
     prefix = [sys.executable]
-    if args.unbuffered:
+    if not args.buffered:
         prefix += ["-u"]
 
     return prefix + target
@@ -101,16 +101,15 @@ def main() -> int:
     parser.add_argument("--grace-seconds", type=int, default=30, help="优雅退出等待秒数（默认 30）")
 
     parser.add_argument("--log-dir", default="/data2/data/infinigen/", help="日志目录")
-    parser.add_argument("--unbuffered", action="store_true", help="给 python 加 -u，减少输出缓冲问题")
+    parser.add_argument("--buffered", action="store_true", help="给 python 加 -u，减少输出缓冲问题,默认就是无缓冲")
 
     # 关键：REMAINDER 必须放在最后，否则后面的可选参数都会被吞掉
     parser.add_argument("--max-runs", type=int, default=0, help="最多运行轮数；0 表示无限循环（默认 0）")
-    parser.add_argument("--stop-rc", type=int, default=99, help="子进程以该退出码退出时，runner 不再重启并结束（默认 99）")
     parser.add_argument("target", nargs=argparse.REMAINDER, help="用 -- 分隔后面的目标命令，例如：-- your_task.py --a 1")
 
     args = parser.parse_args()
 
-    cwd = "/home/ubuntu/lxd/lxd_code/isaacsim"
+    cwd = Path.cwd().as_posix()
     cmd = build_cmd(args, args.target)
     log_dir = Path(args.log_dir)
 
@@ -130,14 +129,9 @@ def main() -> int:
         try:
             try:
                 rc = p.wait(timeout=args.cycle_seconds)
-
-                # 方案 B：子进程用退出码通知“停止 runner”
-                if rc == args.stop_rc:
-                    elapsed = int(time.monotonic() - start)
-                    print(f"[runner] child requested stop via rc={rc}, elapsed={elapsed}s; exiting runner.")
-                    return 0
-
                 reason = f"exited rc={rc}"
+                # app 在达到时延之前正常退出就意味着该终止了，所以看门狗在这里退出循环
+                break
 
             except subprocess.TimeoutExpired:
                 reason = f"timeout {args.cycle_seconds}s"

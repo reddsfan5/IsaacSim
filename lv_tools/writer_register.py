@@ -7,7 +7,6 @@ import traceback
 import cv2
 import time
 from datetime import datetime
-import sys
 import numpy as np
 from lv_tools.centerpose_to_alva import add_cuboid_27, add_vfov, draw_projected_keypoints, is_ann_valid,calculate_vfov,calculate_kps_based_on_world_file
 from lv_tools.cores.img_io import cv2imwrite, img_byte_to_arr
@@ -71,22 +70,18 @@ class LMDBWriter(PoseWriter):
                  rotate_threshold:float=90,
                  show_bin:int=1000,
                  max_data_num:int=10000,
-                #  app= None,
+                 train_lmdb_path:str='',
+                 val_lmdb_path:str='',
                  *args,**kwargs):
-        # self._output_dir = kwargs.get('output_dir','') + '_' + self._get_time_str()
-        # self._output_dir = os.path.join(kwargs.get('output_dir',''), str(task_id))
-        self._output_dir = kwargs.get('output_dir','')
-        # self.app = app
+        lmdb_output_dir = kwargs.get('output_dir','')
+        self._output_dir = os.path.dirname(lmdb_output_dir)
         self.max_data_num = int(max_data_num)
-        num_str = f'{round(max_data_num/10000)}W' if int(max_data_num/10000)>=1 else str(max_data_num)
-        _train_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_train_lmdb'
-        _val_lmdb_path = self._output_dir+f'/{os.path.basename(self._output_dir)}_{num_str}_{self._get_time_str()}_val_lmdb'
         self._truncation_ratio = truncation_ratio
         self._visibility_ratio = visibility_ratio
         self._rotate_threshold = rotate_threshold
 
-        self._train_saver = LmdbSaver(_train_lmdb_path,cache_capacity)
-        self._val_saver = LmdbSaver(_val_lmdb_path,cache_capacity)
+        self._train_saver = LmdbSaver(train_lmdb_path,cache_capacity)
+        self._val_saver = LmdbSaver(val_lmdb_path,cache_capacity)
         self._show_bin = show_bin
         self._val_count = len(self._val_saver)
         self._train_count = len(self._train_saver)
@@ -322,10 +317,8 @@ class LMDBWriter(PoseWriter):
 
             
             # if self._train_count >= self.max_data_num:
-            # #     self._train_saver.close()
-            # #     self._val_saver.close()
-            # #     sys.exit(99)
-            #     self.app.close()
+            #     self._train_saver.close()
+            #     self._val_saver.close()
 
 
 
