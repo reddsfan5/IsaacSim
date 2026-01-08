@@ -175,8 +175,8 @@ from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_re
 from lv_tools.writer_register import LMDBWriter,KPSWriter
 
 
-# 不知这样可否缓解材质缓存压力
-random.seed(666)
+# # 不知这样可否缓解材质缓存压力
+# random.seed(666)
 
 
 

@@ -10,6 +10,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from lv_tools.dir_rm import clear_dir_if_exceeds
+
+
+
+TEXTURE_CACHE_ROOT = '/home/ubuntu/.cache/ov/texturecache'
+CACHE_THRESHOLD = 150 * 1024**3
 
 def build_cmd(args: argparse.Namespace, target: list[str]) -> list[str]:
     """
@@ -102,9 +108,8 @@ def main() -> int:
 
     parser.add_argument("--log-dir", default="/data2/data/infinigen/", help="日志目录")
     parser.add_argument("--buffered", action="store_true", help="给 python 加 -u，减少输出缓冲问题,默认就是无缓冲")
-
-    # 关键：REMAINDER 必须放在最后，否则后面的可选参数都会被吞掉
     parser.add_argument("--max-runs", type=int, default=0, help="最多运行轮数；0 表示无限循环（默认 0）")
+    # 关键：REMAINDER 必须放在最后，否则后面的可选参数都会被吞掉
     parser.add_argument("target", nargs=argparse.REMAINDER, help="用 -- 分隔后面的目标命令，例如：-- your_task.py --a 1")
 
     args = parser.parse_args()
@@ -117,6 +122,8 @@ def main() -> int:
 
     run_index = 0
     while args.max_runs <= 0 or run_index < args.max_runs:
+
+        clear_dir_if_exceeds(TEXTURE_CACHE_ROOT, threshold_bytes=CACHE_THRESHOLD, dry_run=False)
         run_index += 1
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = log_dir / f"run_{run_index:04d}_{ts}.log"
