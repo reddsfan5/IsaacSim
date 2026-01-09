@@ -71,7 +71,7 @@ writers:
       # task_id: 007
       max_data_num: *total_captures
       show_bin: 30
-      cache_capacity: 10
+      cache_capacity: 100
       format: null # dope ; centerpose
       skip_empty_frames: true
       truncation_ratio: 0.5

@@ -693,22 +693,19 @@ def run_sdg(config,args):
 
         for i in range(num_dropped_captures_per_env):
 
-            cur_data_num = current_entries(train_lmdb_path)
+            if i%100 ==0 and (cur_data_num:=current_entries(train_lmdb_path)) >= total_captures:
+                print(f"当前样本量已经达到：[[[[[[{cur_data_num}]]]]]]")
+                break
 
             delta = max(0, min(cur_data_num, total_captures) - last)
             if delta:
                 pbar.update(delta)
                 last += delta            
 
-            # print(f"当前样本量已经达到：[[[[[[{cur_data_num}]]]]]]")
             # Check if the total captures have been reached
             if capture_counter >= total_captures:
                 break
 
-
-            if cur_data_num >= total_captures:
-                print(f"当前样本量已经达到：[[[[[[{cur_data_num}]]]]]]")
-                break
 
             if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
                 

@@ -85,7 +85,6 @@ class LMDBWriter(PoseWriter):
         self._show_bin = show_bin
         self._val_count = len(self._val_saver)
         self._train_count = len(self._train_saver)
-        self._continuous_invalid_count = 0
 
         super().__init__(*args,**kwargs)
 
@@ -229,7 +228,6 @@ class LMDBWriter(PoseWriter):
 
             # Early exist if empty frames should not be written
             if self._skip_empty_frames and num_objs == 0:
-                self._continuous_invalid_count += 1
                 continue
 
             # Create render product name subfolder if data should be separated for each render product
@@ -239,12 +237,10 @@ class LMDBWriter(PoseWriter):
 
 
             if not is_ann_valid(self._frame_data, truncation_ratio=self._truncation_ratio, visibility_ratio=self._visibility_ratio,rotate_threshold=self._rotate_threshold):
-                self._continuous_invalid_count += 1
                 continue 
             
             
 
-            self._continuous_invalid_count = 0
             camera_view_transform = camera_params_data['cameraViewTransform']
             # bbox_3d_info = bounding_box_3d_data['data'][0]
             center_target = self._frame_data['objects'][0]['cuboid_keypoints_world_frame'][0]
@@ -304,6 +300,9 @@ class LMDBWriter(PoseWriter):
 
             pickle_bytes = pickle.dumps(data_dict)
 
+            if len(pickle_bytes)<10000:
+                continue
+
 
             if self._val_count<1000 and random.uniform(0,1)<0.1:
                 self._val_saver.put(str(self._val_count).zfill(10).encode('utf8'),pickle_bytes)
@@ -315,10 +314,6 @@ class LMDBWriter(PoseWriter):
                 if self._train_count%10==0:
                     print(f'current training data num:[{self._train_count}]')
 
-            
-            # if self._train_count >= self.max_data_num:
-            #     self._train_saver.close()
-            #     self._val_saver.close()
 
 
 
