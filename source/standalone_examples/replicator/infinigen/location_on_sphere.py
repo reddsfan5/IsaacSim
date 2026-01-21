@@ -6,44 +6,146 @@ from typing import Iterator, List, Tuple
 
 CameraPose = Tuple[float, float, float]  # (polar, azimuth, distance)
 
+
+
+def polar_to_latitude(polar:float):
+    return 90-polar
+
+
+def latitude_to_polar(latitude:float):
+    return 90-latitude
+
+def polar_range_to_latitude_range(polar_range:tuple[float,float]):
+    '''
+  
+    假设传入的都是合理的角度值区间，不做异常修正和捕获。
+
+    '''
+
+
+    lati1 = 90-polar_range[0]
+    lati2 = 90-polar_range[1]
+
+    return [lati2,lati1]  if lati2<=lati1 else [lati1,lati2]
+
+def latitude_range_to_polar_range(latitude_range:tuple[float,float]):
+    '''
+    
+    假设传入的都是合理的角度值区间，不做异常修正和捕获。
+    '''
+
+
+    polar1 = 90-latitude_range[0]
+    polar2 = 90-latitude_range[1]
+
+    return [polar2,polar1]  if polar2<=polar1 else [polar1,polar2]
+
+
+# @dataclass(frozen=True)
+# class SpherePatch:
+
+
+#     polar_range: Tuple[float, float]  # in degrees
+#     azimuth_range: Tuple[float, float] # in degrees
+#     distance_range: Tuple[float, float] = (1.5, 1.5)
+
+
+#     def azimuth_span_deg(self) -> float:
+#         a, b = self.azimuth_range
+#         span = (b - a) % 360.0
+#         raw = abs(b - a)
+#         if raw >= 360.0 - 1e-9 or (raw > 1e-9 and abs(raw % 360.0) < 1e-9):
+#             return 360.0
+#         return span
+
+#     def area_weight(self) -> float:
+#         p0, p1 = self.polar_range
+#         p0, p1 = sorted((max(0.0, p0), min(180.0, p1)))
+#         dphi = math.radians(self.azimuth_span_deg())
+#         if dphi <= 0:
+#             return 0.0
+#         return dphi * (math.cos(math.radians(p0)) - math.cos(math.radians(p1)))
+
+
+#     def sample_uniform(self) -> CameraPose:
+#         # polar (cos-uniform)
+#         p0, p1 = self.polar_range
+#         cmax = math.cos(math.radians(min(p0, p1)))
+#         cmin = math.cos(math.radians(max(p0, p1)))
+#         cos_p = cmin + (cmax - cmin) * random.random()
+#         polar = math.degrees(math.acos(max(-1, min(1, cos_p))))                                    
+
+#         # azimuth
+#         a = self.azimuth_range[0]
+#         span = self.azimuth_span_deg()
+#         azimuth = a if span == 0 else (a + span * random.random()) % 360.0
+
+#         # distance
+#         d0, d1 = self.distance_range
+#         distance = random.uniform(d0, d1)
+
+#         return polar, azimuth, distance
+
+    # def deg_to_arc(angle_deg):
+    #     return math.radians(angle_deg)
+
+
 @dataclass(frozen=True)
 class SpherePatch:
 
-
-    polar_range: Tuple[float, float]  # in degrees
-    azimuth_range: Tuple[float, float] # in degrees
+    polar_range: Tuple[float, float]       # degrees, [0,180]
+    azimuth_range: Tuple[float, float]     # degrees, [-180,180]
     distance_range: Tuple[float, float] = (1.5, 1.5)
 
+    @staticmethod
+    def wrap_to_180(a: float) -> float:
+        return (a + 180.0) % 360.0 - 180.0
 
     def azimuth_span_deg(self) -> float:
-        a, b = self.azimuth_range
-        span = (b - a) % 360.0
-        raw = abs(b - a)
-        if raw >= 360.0 - 1e-9 or (raw > 1e-9 and abs(raw % 360.0) < 1e-9):
+        a, b = map(self.wrap_to_180, self.azimuth_range)
+        d = b - a
+
+        if d > 180:
+            d -= 360
+        elif d < -180:
+            d += 360
+
+        span = abs(d)
+
+        raw = abs(self.azimuth_range[1] - self.azimuth_range[0])
+        if raw >= 360.0 - 1e-9:
             return 360.0
+
         return span
 
     def area_weight(self) -> float:
         p0, p1 = self.polar_range
         p0, p1 = sorted((max(0.0, p0), min(180.0, p1)))
+
         dphi = math.radians(self.azimuth_span_deg())
         if dphi <= 0:
             return 0.0
+
         return dphi * (math.cos(math.radians(p0)) - math.cos(math.radians(p1)))
 
-
-    def sample_uniform(self) -> CameraPose:
+    def sample_uniform(self) -> Tuple[float, float, float]:
         # polar (cos-uniform)
         p0, p1 = self.polar_range
         cmax = math.cos(math.radians(min(p0, p1)))
         cmin = math.cos(math.radians(max(p0, p1)))
         cos_p = cmin + (cmax - cmin) * random.random()
-        polar = math.degrees(math.acos(max(-1, min(1, cos_p))))                                    
+        polar = math.degrees(math.acos(max(-1, min(1, cos_p))))
 
-        # azimuth
-        a = self.azimuth_range[0]
+        # azimuth in [-180, 180]
+        a0, a1 = map(self.wrap_to_180, self.azimuth_range)
         span = self.azimuth_span_deg()
-        azimuth = a if span == 0 else (a + span * random.random()) % 360.0
+
+        if span == 0:
+            azimuth = a0
+        else:
+            sign = 1 if ((a1 - a0 + 360) % 360) <= 180 else -1
+            azimuth = a0 + sign * span * random.random()
+            azimuth = self.wrap_to_180(azimuth)
 
         # distance
         d0, d1 = self.distance_range
@@ -51,8 +153,6 @@ class SpherePatch:
 
         return polar, azimuth, distance
 
-    # def deg_to_arc(angle_deg):
-    #     return math.radians(angle_deg)
 
 
 class PatchSampler(ABC):

@@ -148,26 +148,43 @@ class LMDBWriter(PoseWriter):
                 }
         return init_info
 
+
     @staticmethod
-    def _xyzr_to_thetaphi(x, y, z, r):
+    def _xyz_to_thetaphi(x, y, z):
+        '''
+        Docstring for _xyz_to_thetaphi
+        按照右手系，从+z到+x.
+        X
+        ↑
+        |
+        |
+        |                  
+        |                  
+        O------------->Z
+
+
+        '''
+
+        r = math.sqrt(x*x + y*y + z*z)
         if r <= 0:
             raise ValueError("r must be > 0")
 
-        # theta
+        # 极角 θ：与 +Y 轴夹角
         c = y / r
-        c = max(-1.0, min(1.0, c))           # clamp for numeric safety
+        c = max(-1.0, min(1.0, c))
         theta = math.acos(c)
 
-        # phi
+        # 方位角 φ：绕 +Y，从 +Z向 +X
         s = math.sin(theta)
-        if abs(s) < 1e-12:                   # pole: phi undefined
+        if abs(s) < 1e-12:
             phi = 0.0
         else:
-            phi = math.atan2(z, x)           # [-pi, pi]
-            if phi < 0:
-                phi += 2 * math.pi           # [0, 2pi) if you want
+            phi = math.atan2(x, z)
 
         return theta, phi
+
+
+
 
 
     def camera_loc_on_sphere(self,center_target:tuple,camera_view_transform:np.ndarray):
@@ -176,7 +193,7 @@ class LMDBWriter(PoseWriter):
         V = np.array(camera_view_transform).reshape(4,4)
         camera_loc = np.linalg.inv(V)[3, :3]   # 相机世界坐标（行向量约定）
         r = math.sqrt(sum([(camera_loc[i]-center_target[i])**2 for i in range(3)]))
-        polar,yaw = self._xyzr_to_thetaphi(camera_loc[0]-center_target[0],camera_loc[1]-center_target[1],camera_loc[2]-center_target[2],r)
+        polar,yaw = self._xyz_to_thetaphi(camera_loc[0]-center_target[0],camera_loc[1]-center_target[1],camera_loc[2]-center_target[2])
         polar_deg = polar * 180 / math.pi
         yaw_deg = yaw * 180 / math.pi
         return polar_deg,yaw_deg,r
@@ -232,11 +249,14 @@ class LMDBWriter(PoseWriter):
             camera_view_transform = camera_params_data['cameraViewTransform']
             # bbox_3d_info = bounding_box_3d_data['data'][0]
             center_target = self._frame_data['objects'][0]['cuboid_keypoints_world_frame'][0]
-            polar,yaw,r = self.camera_loc_on_sphere(center_target,camera_view_transform)
+            polar,azimuth,r = self.camera_loc_on_sphere(center_target,camera_view_transform)
 
-            print(f'写入角度参数：polar:{round(polar,2)},azimuth:{round(yaw,2)},radius:{round(r,2)}')
+            print(f'写入角度参数：polar:{round(polar,2)},azimuth:{round(azimuth,2)},radius:{round(r,2)}')
 
-            data_dict['camera_polar_yaw'] = (int(polar),int(yaw))
+            latitude = 90-int(polar)
+
+            # data_dict['camera_latitude_azimuth'] = (latitude,90-int(azimuth))
+            data_dict['camera_latitude_azimuth'] = (latitude,int(azimuth))
             data_dict['camera_r'] = round(r,3)
             
             
@@ -307,10 +327,10 @@ class LMDBWriter(PoseWriter):
                     show_dir = os.path.join(os.path.dirname(self._output_dir),'samples')
                     if not os.path.exists(show_dir):
                         os.mkdir(show_dir)
-                    
-                    img_ori_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'.jpg')
-                    img_draw_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_overlay.jpg')
-                    img_seg_path = os.path.join(show_dir,str(self._frame_id).zfill(10)+'_seg.jpg')
+                    stem = str(int(azimuth))+"_"+str(self._frame_id).zfill(10)
+                    img_ori_path = os.path.join(show_dir,stem+'.jpg')
+                    img_draw_path = os.path.join(show_dir,stem+'_overlay.jpg')
+                    # img_seg_path = os.path.join(show_dir,stem+'_seg.jpg')
                     bgr_data = cv2.cvtColor(rgb_data,cv2.COLOR_RGB2BGR)
                     pil_img = PIL.Image.fromarray(bgr_data)
                     draw = PIL.ImageDraw.Draw(pil_img)

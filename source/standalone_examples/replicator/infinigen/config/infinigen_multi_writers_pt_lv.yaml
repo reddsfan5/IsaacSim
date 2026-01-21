@@ -248,7 +248,7 @@ materials_control:
 
 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: true
-headless: false
+debug_mode: false
+headless: true
 
 

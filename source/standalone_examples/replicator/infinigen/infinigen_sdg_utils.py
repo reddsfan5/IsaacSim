@@ -143,11 +143,35 @@ def add_colliders_and_rigid_body_dynamics(prim: Usd.Prim, disable_gravity: bool 
 
 
 
+# def sphere_coord_to_world_loc(origin:tuple[float,float,float],polar:float,azimuth:float,radius:float):
+#     '''
+#     自定义球坐标约定（Y 为极轴）：
+#       极角，0° 在 +Y，180° 在 -Y
+#       方位角，绕 Y 轴，从 +X 方向起，向 +Z 递增（右手系）
+#     '''
+
+#     # 角度转弧度
+#     polar = math.radians(polar)
+
+#     azimuth = math.radians(azimuth)
+
+
+#     # Y-UP 球坐标 -> 笛卡尔
+#     x = radius * math.sin(polar) * math.cos(azimuth)  
+#     y = radius * math.cos(polar) #  Y 是极轴
+#     z = radius * math.sin(polar) * math.sin(azimuth)
+
+#     # location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
+
+#     return origin[0] + x, origin[1] + y, origin[2] + z
+
+
+
 def sphere_coord_to_world_loc(origin:tuple[float,float,float],polar:float,azimuth:float,radius:float):
     '''
-    球坐标约定（Y 为极轴）：
+    自定义球坐标约定（Y 为极轴）：
       极角，0° 在 +Y，180° 在 -Y
-      方位角，绕 Y 轴，从 +X 方向起，向 +Z 递增（右手系）
+      方位角，绕 Y 轴，从 +Z 方向起，向  递增（右手系）
     '''
 
     # 角度转弧度
@@ -157,13 +181,15 @@ def sphere_coord_to_world_loc(origin:tuple[float,float,float],polar:float,azimut
 
 
     # Y-UP 球坐标 -> 笛卡尔
-    x = radius * math.sin(polar) * math.cos(azimuth)  
+    x = radius * math.sin(polar) * math.sin(azimuth)  
     y = radius * math.cos(polar) #  Y 是极轴
-    z = radius * math.sin(polar) * math.sin(azimuth)
+    z = radius * math.sin(polar) * math.cos(azimuth)
 
     # location = Gf.Vec3d(origin[0] + x, origin[1] + y, origin[2] + z)
 
     return origin[0] + x, origin[1] + y, origin[2] + z
+
+
 
 
 def get_random_sphere_coord(radius_range: Tuple[float, float], polar_range: Tuple[float, float], azimuth_range: Tuple[float, float]=(0,360)):
@@ -194,7 +220,7 @@ def get_random_location_around_target(
 
     
 # 计算方位角（绕Y轴旋转）
-def calculate_yaw(x0, y0, z0, target_x, target_y, target_z):
+def calculate_yaw(x0, z0, target_x, target_z):
     '''
     O-------------------------->  x
     |
@@ -241,7 +267,7 @@ def calculate_pitch(x0, y0, z0, target_x, target_y, target_z):
 def calculate_camera_pitch_yaw(x0, y0, z0, target_x, target_y, target_z):
     # 计算方位角和俯仰角
     # 生成 Y-UP 场景中的随机相机位姿，使相机看向 origin。
-    yaw = calculate_yaw(x0, y0, z0, target_x, target_y, target_z)
+    yaw = calculate_yaw(x0,z0, target_x, target_z)
     pitch = calculate_pitch(x0, y0, z0, target_x, target_y, target_z)
     
     return pitch/math.pi*180, yaw/math.pi*180

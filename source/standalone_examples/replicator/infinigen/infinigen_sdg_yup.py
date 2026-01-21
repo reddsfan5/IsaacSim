@@ -43,10 +43,11 @@ parser.add_argument(
 parser.add_argument("--task_id", required=True, help="Subforder name")
 parser.add_argument("--remote_save_root", type=str, help='The remote root folder to save the generated dataset')
 parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str,required=True)
-parser.add_argument("--camera_yaw",help='Camera azimuth range',nargs=2,default=[0,360],type=float,metavar=('yaw_min','yaw_max'))
-parser.add_argument("--camera_polar",help='Camera polar angle range',nargs=2,default=[0,90],type=float,metavar=('polar_min','polar_max'))
+parser.add_argument("--camera_azimuth",help='Camera azimuth angle range',nargs=2,default=[-180,180],type=float,metavar=('azimuth_min','azimuth_max'))
+parser.add_argument("--camera_latitude",help='Camera latitude angle range',nargs=2,default=[-90,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
+parser.add_argument("--gpu",help='gpu select',type=int,default=0)
 
 print("Received args:", sys.argv)
  
@@ -56,12 +57,12 @@ if sys.argv[1:]:
 else:
     args_list = [
              "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "moto_test", 
-             "--local_glb_path", "/data2/isaacsim/assets/converted_usd/007/008/moto.usd",  
-             "--camera_yaw", "0","360", 
-             "--camera_polar", "60","90", 
+             "--task_id", "jj_test_66", 
+             "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
+             "--camera_azimuth", "0","360", 
+             "--camera_latitude", "60","90", 
              "--data_num", "200",
-             "--add_angle",'{"patches_params": [{"polar_range": [20, 50], "azimuth_range": [20, 50], "distance_range": [1, 1.1], "num": 10}, {"polar_range": [80, 90], "azimuth_range": [80, 90], "distance_range": [1.8, 1.9], "num": 50}]}'
+             "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
              ]
     
     args, unknown = parser.parse_known_args(args_list)
@@ -89,7 +90,10 @@ config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
 
 simulation_app = SimulationApp(launch_config={
     "headless": config.get("headless", False),
-    "renderer": "RealTimePathTracing"  # 选择 RT 2.0 的渲染模式
+    "renderer": "RealTimePathTracing",  # 选择 RT 2.0 的渲染模式
+    "active_gpu":args.gpu,
+    "physics_gpu":args.gpu,
+    "multi_gpu":False
 })
 
 
@@ -123,7 +127,7 @@ _custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("sou
 sys.path.append(_custom_sys_path)
 
 import infinigen_sdg_utils as infinigen_utils
-from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch
+from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch, latitude_range_to_polar_range, polar_range_to_latitude_range
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
 from lv_tools.writer_register import LMDBWriter,KPSWriter
@@ -419,10 +423,13 @@ def run_sdg(config,args):
 
     data_gen_list = []
     if not json_str:
+        polar_range = latitude_range_to_polar_range(args.camera_latitude)
+
+        
 
         patches = [SpherePatch(
-                polar_range=args.camera_polar,
-                azimuth_range=args.camera_yaw
+                polar_range=polar_range,
+                azimuth_range=args.camera_azimuth
             )]
 
         train_dict = {'gener':RandomUniformSphereCoord(
@@ -440,8 +447,10 @@ def run_sdg(config,args):
         jd = json.loads(json_str)
         patch_quota = []
         for patch_params in jd['patches_params']:
+
+            polar_range = latitude_range_to_polar_range(patch_params['latitude_range'])
             patch = SpherePatch(
-                polar_range=patch_params['polar_range'],
+                polar_range=polar_range,
                 azimuth_range=patch_params['azimuth_range'],
                 distance_range=patch_params.get('distance_range',[1.2,2.0]),
             )
@@ -643,8 +652,8 @@ def run_sdg(config,args):
                     #     infinigen_utils.random_visibility("/Distractors")
                         
                     # 取余 纬度转极角
-                    # polar_range = [90-polar for polar in args.camera_polar]
-                    # polar_range.sort()
+                    # latitude_range = [90-polar for polar in args.camera_latitude]
+                    # latitude_range.sort()
                     
 
 
