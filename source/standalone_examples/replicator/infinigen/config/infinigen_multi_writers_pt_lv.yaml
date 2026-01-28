@@ -37,7 +37,7 @@ capture:
   # Number of captures per environment after running the simulation (objects dropped)
   num_dropped_captures_per_env: 200
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 5
+  num_cameras: 3
   # Resolution of the captured frames
   resolution: [640, 480] # [640,480]
   
@@ -70,7 +70,7 @@ writers:
       output_dir: *output_root
       task_id: 007
       expect_data_num: 3000
-      show_bin: 1
+      show_bin: 100
       cache_capacity: 10
       format: null # dope ; centerpose
       skip_empty_frames: true
@@ -183,7 +183,7 @@ distractors:
   # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
   shape_distractors:
     # Amount of shape distractors to create
-    num: 1
+    num: 10
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-1,1]
       y: [0,0.5]
@@ -197,7 +197,7 @@ distractors:
   # Mesh distractors (unlabeled background assets) to drop in the scene
   mesh_distractors:
     # Amount of mesh distractors to create
-    num: 1
+    num: 10
     # Chance to disable gravity for the mesh distractors
     location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
       x: [-1,1]
@@ -236,13 +236,13 @@ materials_control:
     materials_root: /pbr_materials
     # pbr_prob: 0.5
     color: [0,1]
-    num: 10
+    num: 50
     metallic_constant: [0.1,0.99]
     reflection_roughness: [0.01,1]
     texture_scale: [.8,1.5]
     translate: [1,50]
     texture_bg: /data2/isaacsim/bg_img/pure_bg
-    texture_poliigon: /data2/isaacsim/materials/pbr_texture
+    texture_poliigon: /data2/isaacsim/materials/pbr_texture/Concrete
 
 
 

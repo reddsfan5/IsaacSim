@@ -269,7 +269,7 @@ def run_sdg(config,args):
         asyncio.get_event_loop().run_until_complete(convert_asset_to_usd(mediate_asset_path, output_path))
 
         labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
-                                "label": infinigen_utils.valid_stage_name(str(args.task_id)),
+                                "label": infinigen_utils.valid_stage_name(str(Path(input_path).stem)),
                                 "num": 1,
                                 "gravity_disabled_chance": 0}]}
 

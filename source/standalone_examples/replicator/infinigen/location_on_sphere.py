@@ -41,54 +41,6 @@ def latitude_range_to_polar_range(latitude_range:tuple[float,float]):
     return [polar2,polar1]  if polar2<=polar1 else [polar1,polar2]
 
 
-# @dataclass(frozen=True)
-# class SpherePatch:
-
-
-#     polar_range: Tuple[float, float]  # in degrees
-#     azimuth_range: Tuple[float, float] # in degrees
-#     distance_range: Tuple[float, float] = (1.5, 1.5)
-
-
-#     def azimuth_span_deg(self) -> float:
-#         a, b = self.azimuth_range
-#         span = (b - a) % 360.0
-#         raw = abs(b - a)
-#         if raw >= 360.0 - 1e-9 or (raw > 1e-9 and abs(raw % 360.0) < 1e-9):
-#             return 360.0
-#         return span
-
-#     def area_weight(self) -> float:
-#         p0, p1 = self.polar_range
-#         p0, p1 = sorted((max(0.0, p0), min(180.0, p1)))
-#         dphi = math.radians(self.azimuth_span_deg())
-#         if dphi <= 0:
-#             return 0.0
-#         return dphi * (math.cos(math.radians(p0)) - math.cos(math.radians(p1)))
-
-
-#     def sample_uniform(self) -> CameraPose:
-#         # polar (cos-uniform)
-#         p0, p1 = self.polar_range
-#         cmax = math.cos(math.radians(min(p0, p1)))
-#         cmin = math.cos(math.radians(max(p0, p1)))
-#         cos_p = cmin + (cmax - cmin) * random.random()
-#         polar = math.degrees(math.acos(max(-1, min(1, cos_p))))                                    
-
-#         # azimuth
-#         a = self.azimuth_range[0]
-#         span = self.azimuth_span_deg()
-#         azimuth = a if span == 0 else (a + span * random.random()) % 360.0
-
-#         # distance
-#         d0, d1 = self.distance_range
-#         distance = random.uniform(d0, d1)
-
-#         return polar, azimuth, distance
-
-    # def deg_to_arc(angle_deg):
-    #     return math.radians(angle_deg)
-
 
 @dataclass(frozen=True)
 class SpherePatch:
@@ -290,16 +242,25 @@ if __name__ == "__main__":
     #     (SpherePatch((80, 90), (90, 180)), 10),
     # ]
 
+    # patches = [
+    # SpherePatch((10, 15), (0, 90)),
+    # SpherePatch((80, 90), (90, 180)),
+    # ]
+
+
     patches = [
-    SpherePatch((10, 15), (0, 90)),
-    SpherePatch((80, 90), (90, 180)),
+    SpherePatch(polar_range=(0, 90), azimuth_range=(-180, 180))
     ]
     sampler = IterPatchSampler(patches)
     sampler = iter(sampler)
+    count = 0
     while True:
         try:
             print(next(sampler))
+            count += 1
 
         except StopIteration:
             break
+
+    print(count)
         
