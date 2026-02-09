@@ -32,6 +32,17 @@ import yaml
 from isaacsim import SimulationApp
 import asyncio
 
+CAMERA_LOCATION_MAP = {9000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
+            8000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
+            7000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
+            6000: {'polar_step_deg': 1, 'azimuth_step_min': 2}, 
+            5000: {'polar_step_deg': 1, 'azimuth_step_min': 3}, 
+            4000: {'polar_step_deg': 1, 'azimuth_step_min': 4}, 
+            3000: {'polar_step_deg': 1, 'azimuth_step_min': 7}, 
+            2000: {'polar_step_deg': 2, 'azimuth_step_min': 5}, 
+            1000: {'polar_step_deg': 3, 'azimuth_step_min': 7}}
+
+
 
 # Check if there are any config files (yaml or json) are passed as arguments
 parser = argparse.ArgumentParser()
@@ -48,6 +59,7 @@ parser.add_argument("--camera_latitude",help='Camera latitude angle range',nargs
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
 parser.add_argument("--gpu",help='gpu select',type=int,default=0)
+parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
 
 print("Received args:", sys.argv)
  
@@ -62,7 +74,8 @@ else:
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "60","90", 
              "--data_num", "200",
-             "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
+             "val_num",'1000'
+            #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
              ]
     
     args, unknown = parser.parse_known_args(args_list)
@@ -84,6 +97,13 @@ config = args_config
 lmdb_output_dir  = os.path.join(config['writers'][0]['kwargs']['output_dir'],str(args.task_id)) 
 
 config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
+
+
+
+
+
+
+
 
 
 
@@ -131,6 +151,12 @@ from source.standalone_examples.replicator.infinigen.location_on_sphere import I
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
 from lv_tools.writer_register import LMDBWriter,KPSWriter
+
+def _get_val_patams(val_num:int):
+    val_num = max(1000,min(val_num//1000*1000,9000))
+    return CAMERA_LOCATION_MAP[val_num]
+
+
 
 def _get_time_str():
     return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H')
@@ -244,6 +270,16 @@ def run_sdg(config,args):
     
     materials_control_config = config.get("materials_control",{})
 
+
+
+
+
+
+
+
+
+
+
     if args.data_num:
         capture_config['total_captures'] = args.data_num
 
@@ -325,6 +361,7 @@ def run_sdg(config,args):
     resolution = capture_config.get("resolution", (1280, 720))
     disable_render_products = capture_config.get("disable_render_products", False)
     for cam in cameras:
+        # camera: Union[ReplicatorItem, str, List[str], Sdf.Path, List[Sdf.Path], usdrt.Usd.Prim, List[usdrt.Usd.Prim]]
         rp = rep.create.render_product(cam.GetPath(), resolution, name=f"rp_{cam.GetName()}")
         if disable_render_products:
             rp.hydra_texture.set_updates_enabled(False)
@@ -439,7 +476,7 @@ def run_sdg(config,args):
         data_gen_list.append(train_dict)
 
 
-        val_dict ={'gener':IterPatchSampler(patches=patches),
+        val_dict ={'gener':IterPatchSampler(patches=patches,**_get_val_patams(args.val_num)),
         'writers_init':lambda : writers_init(writers_config,render_products,mode='val')}
         data_gen_list.append(val_dict)
 
@@ -658,9 +695,9 @@ def run_sdg(config,args):
 
 
 
-                    print(
-                        f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
-                    )
+                    # print(
+                    #     f"\tCapturing dropped assets {i+1}/{num_dropped_captures_per_env}; total captures: {capture_counter+1}/{total_captures};"
+                    # )
                     simulation_app.update()
                     capture_one_frame(rt_subframes,step_delta_time,pause_timeline=True,wait_after=wait_after_each_capture)
                     capture_counter += 1   

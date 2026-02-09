@@ -251,16 +251,23 @@ if __name__ == "__main__":
     patches = [
     SpherePatch(polar_range=(0, 90), azimuth_range=(-180, 180))
     ]
-    sampler = IterPatchSampler(patches)
-    sampler = iter(sampler)
-    count = 0
-    while True:
-        try:
-            print(next(sampler))
-            count += 1
 
-        except StopIteration:
-            break
+    params_map = {}
 
-    print(count)
-        
+    for i in range(1,4):
+        for j in range(1,11):
+
+            sampler = IterPatchSampler(patches,polar_step_deg=i,azimuth_step_min=j)
+            sampler = iter(sampler)
+            count = 0
+            while True:
+                try:
+                    next(sampler)
+                    count += 1
+
+                except StopIteration:
+                    break
+
+            # print(count)
+            params_map[count] = {"polar_step_deg":i,"azimuth_step_min":j}
+    print(params_map)
