@@ -6,9 +6,7 @@
             "program": "${file}",
             "cwd":"${workspaceFolder}",
             "justMyCode":false,
-            "args": ["--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "bianxieshi", "--local_glb_path", "/data2/isaacsim/assets/converted_usd/007/008/moto.usd",  
-             "--camera_yaw", "0","360", "--camera_polar", "85","89", "--data_num", "20"]
+            "args": []
 
 
         },

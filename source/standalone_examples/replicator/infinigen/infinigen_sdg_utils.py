@@ -29,7 +29,7 @@ import omni.replicator.core as rep
 import omni.timeline
 import omni.usd
 from isaacsim.core.utils.semantics import add_labels,remove_all_semantics  # remove_labels
-from isaacsim.core.utils.stage import add_reference_to_stage
+from isaacsim.core.utils.stage import add_reference_to_stage,is_stage_loading
 from isaacsim.storage.native import get_assets_root_path
 
 import urllib.parse
@@ -373,13 +373,19 @@ def randomize_camera_poses(
     cameras: List[Usd.Prim],
     pose_gener:Iterator,
     look_at: tuple = (0,0,0),  
+    roll_range:tuple = (-15,15),
+    distance_scale:float = 1
 ) -> None:
 
     for cam in cameras:
 
         # 随机机位（Y-UP）
-        roll = random.uniform(-15,15)
+        roll = random.uniform(*roll_range)
         polar,azimuth,radius = next(pose_gener)
+        radius *= distance_scale
+        # too close may cause exception
+        radius = max(.4,radius)
+        
 
         print(f'polar:{polar},azimuth:{azimuth},radius:{radius}')
 
@@ -477,9 +483,21 @@ def load_env(usd_path: str, prim_path: str,simulation_app, remove_existing: bool
     if remove_existing and stage.GetPrimAtPath(prim_path):
         omni.kit.commands.execute("DeletePrimsCommand", paths=[prim_path])
 
-    for _ in range(3):
+    for _ in range(30):
         simulation_app.update()
     root_prim = add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
+     # 3) 至少先 update 一帧，让 reference 提交
+    simulation_app.update()
+
+    # 4) 等到 stage 不再 loading
+    wait_count = 0
+    while is_stage_loading():
+        simulation_app.update()
+        wait_count += 1
+
+    # 5) 再额外 warmup 几帧，避免刚结束 loading 就采到过渡帧
+    for _ in range(3):
+        simulation_app.update()
     return root_prim
 
 def remove_prim(prim_path: str,simulation_app):
@@ -488,11 +506,36 @@ def remove_prim(prim_path: str,simulation_app):
     # Remove existing prim if specified
     if stage.GetPrimAtPath(prim_path):
         omni.kit.commands.execute("DeletePrimsCommand", paths=[prim_path])
-    for _ in range(3):
+    for _ in range(30):
         simulation_app.update()
 
 
+def add_static_collider(container_stage_path: str):
+    """
+    将 container_stage_path 设为静态碰撞体：
+    - 不加 RigidBodyAPI
+    - 只加 CollisionAPI
+    - 若自身已有 RigidBodyAPI，则移除
+    """
+    stage = omni.usd.get_context().get_stage()
+    prim = stage.GetPrimAtPath(container_stage_path)
 
+    if not prim or not prim.IsValid():
+        raise ValueError(f"Invalid prim path: {container_stage_path}")
+
+    # 1) 如果 prim 自身带有 RigidBodyAPI，移除它
+    if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+        prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+
+    # 2) 如果 prim 自身带有 MassAPI，也建议移除，避免误导
+    if prim.HasAPI(UsdPhysics.MassAPI):
+        prim.RemoveAPI(UsdPhysics.MassAPI)
+
+    # 3) 添加 CollisionAPI
+    if not prim.HasAPI(UsdPhysics.CollisionAPI):
+        UsdPhysics.CollisionAPI.Apply(prim)
+
+    return prim
 
 
 
@@ -542,6 +585,7 @@ def hide_matching_prims(match_strings: list[str], root_path: str | None = None, 
                 prim.GetAttribute("visibility").Set("invisible")
 
 
+
 def setup_env(root_path: str | None = None, approximation_type: str = "none", hide_top_walls: bool = False) -> None:
     """Set up the environment with colliders, ceiling light adjustments, and optional top wall hiding."""
     # Fix ceiling lights: meshes are blocking the light and need to be set to invisible
@@ -557,17 +601,20 @@ def setup_env(root_path: str | None = None, approximation_type: str = "none", hi
     if hide_top_walls:
         hide_matching_prims(["_exterior", "_ceiling"], root_path)
 
-    # Add colliders to the environment
-    add_colliders_to_env(root_path, approximation_type)
+    # Add colliders to the environment,# todo lvxiaodng 
+
+
+    
+    # add_colliders_to_env(root_path, approximation_type)
 
     # Fix dining table collision by setting it to a bounding cube approximation
-    table_prim = find_matching_prims(
-        match_strings=["TableDining"], root_path=root_path, prim_type="Xform", first_match_only=True
-    )
-    if table_prim is not None:
-        add_colliders(table_prim, approximation_type="boundingCube")
-    else:
-        print("[SDG-Infinigen] Could not find dining table prim in the environment.")
+    # table_prim = find_matching_prims(
+    #     match_strings=["TableDining"], root_path=root_path, prim_type="Xform", first_match_only=True
+    # )
+    # if table_prim is not None:
+    #     add_colliders(table_prim, approximation_type="boundingCube")
+    # else:
+    #     print("[SDG-Infinigen] Could not find dining table prim in the environment.")
 
 
 def create_shape_distractors(
@@ -721,6 +768,7 @@ def create_labeled_assets(
         prim_path = omni.usd.get_stage_next_free_path(stage, f"{root_path}/{name_prefix}{label}", False)
 
         prim = add_reference_to_stage(usd_path=asset_url, prim_path=prim_path)
+
         add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
         
         
@@ -875,7 +923,7 @@ def run_simulation(num_frames: int, render: bool = True) -> None:
         # Start the timeline and advance the app, this will render the physics simulation results every frame
         timeline = omni.timeline.get_timeline_interface()
         timeline.set_start_time(0)
-        timeline.set_end_time(1000000)
+        timeline.set_end_time(100000000)
         timeline.set_looping(False)
         timeline.play()
         for _ in range(num_frames):
@@ -952,6 +1000,7 @@ def randomize_lights(
     location_range: tuple[float, float, float, float, float, float] | None = None,
     color_range: tuple[float, float, float, float, float, float] | None = None,
     intensity_range: tuple[float, float] | None = None,
+    radius_range: tuple[float, float] | None = None
 ) -> None:
     """Randomize location, color, and intensity of specified lights within given ranges."""
     for light in lights:
@@ -977,6 +1026,10 @@ def randomize_lights(
         if intensity_range is not None:
             rand_intensity = random.uniform(intensity_range[0], intensity_range[1])
             light.GetAttribute("inputs:intensity").Set(rand_intensity)
+        
+        if radius_range is not None:
+            rand_radius = random.uniform(radius_range[0], radius_range[1])
+            light.GetAttribute("inputs:radius").Set(rand_radius)
 
 
 def setup_writer(config: dict) -> None:
@@ -1112,6 +1165,11 @@ def remove_new_labels(prim: Usd.Prim, instance_name: str | None = None, include_
 
 
 def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float=0.1,target_value:float=0.35):
+    '''
+    max_limit:float=0.5,
+    min_limit:float=0.1,
+    target_value:float=0.35
+    '''
 
     bbox3 = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_]).ComputeWorldBound(target_prim)
     bbox_range = bbox3.ComputeAlignedRange()
@@ -1133,6 +1191,28 @@ def asset_size_adaptive(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float
         # UsdGeom.Xformable(target_prim).GetScaleOp().Set(ori_value*scale)
 
     return scale
+
+
+def calculate_env_adaptive_ratio(target_prim:Usd.Prim,max_limit:float=0.5,min_limit:float=0.1,target_value:float=0.35):
+    '''
+    max_limit:float=0.5,
+    min_limit:float=0.1,
+    target_value:float=0.35
+    '''
+
+    bbox3 = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_]).ComputeWorldBound(target_prim)
+    bbox_range = bbox3.ComputeAlignedRange()
+
+    min_point = bbox_range.GetMin()
+    max_point = bbox_range.GetMax()
+    scale = 1
+    if (test_value:=max(max_point-min_point))>max_limit or test_value<min_limit:
+        scale = test_value/target_value
+        if not target_prim.HasAttribute("xformOp:scale"):
+            UsdGeom.Xformable(target_prim).AddScaleOp()
+
+    return scale
+
 
 
 def random_visibility(parent="/Distractors"):

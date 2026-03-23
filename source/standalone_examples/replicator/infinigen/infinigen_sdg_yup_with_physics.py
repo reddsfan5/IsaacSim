@@ -60,8 +60,6 @@ parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
 parser.add_argument("--gpu",help='gpu select',type=int,default=0)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
-parser.add_argument("--symmetric",action='store_true',help='is asset symmetric or not')
-
 print("Received args:", sys.argv)
  
 
@@ -69,17 +67,14 @@ if sys.argv[1:]:
     args, unknown = parser.parse_known_args()
 else:
     args_list = [
-             "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-7w", 
-            #  "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
-            "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
+             "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_with_container.yaml",
+             "--task_id", "symmetric_cylinder_multi_obj_v12_same_env_60_obj_v2", 
+             "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
              "--camera_azimuth", "0","360", 
-             "--camera_latitude", "0","90", 
-             "--data_num", "70000",
-             "--val_num",'9000',
-             "--symmetric"
-            #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
-             ]
+             "--camera_latitude", "60","90", 
+             "--data_num", "100",
+             '--gpu','0',
+             "--val_num",'5000']
     
     args, unknown = parser.parse_known_args(args_list)
 
@@ -133,13 +128,13 @@ import omni.replicator.core as rep
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
 
-from pxr import UsdGeom,Gf,Usd,UsdShade
+from pxr import UsdGeom,Gf,Usd,UsdShade,UsdPhysics
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
 import omni.kit.asset_converter as converter
 from omni.kit.asset_converter import AssetConverterContext
 
-from isaacsim.core.utils.semantics import get_labels
+from isaacsim.core.utils.semantics import get_labels,add_labels,remove_labels
 import omni.client
 import omni.kit
 import omni.physx
@@ -153,10 +148,7 @@ import infinigen_sdg_utils as infinigen_utils
 from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch, latitude_range_to_polar_range, polar_range_to_latitude_range
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
-from lv_tools.writer_register import LMDBWriter,KPSWriter
-
-
-
+from lv_tools.writer_register import LMDBWriter,KPSWriter,LMDBWriter2D
 
 def _get_val_patams(val_num:int):
     val_num = max(1000,min(val_num//1000*1000,9000))
@@ -206,8 +198,8 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
     for _ in range(materials_control_config['pbr']['num']):
         mat_name,material_cur = mat_map.choice()
         
-        texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
-        # texture_path = material_cur.get('col')
+        # texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
+        texture_path = material_cur.get('col')
         normal_texture_path = material_cur.get('nrm')
         roughness_texture_path = material_cur.get('rough')
         metallic_texture_path = material_cur.get('refl')
@@ -259,7 +251,26 @@ def writers_init(writers_config,render_products,mode='train'):
     return writers
 
 
+def spawn_objects(stage, asset_path, x_range=(-2,2),y_range=(1,3),z_range=(-2,2),scale=1,count=20,label='object'):
 
+    objs = []
+    for i in range(count):
+
+        prim = stage.DefinePrim(f"/World/object_{i}", "Xform")
+        prim.GetReferences().AddReference(asset_path)
+
+        x = random.uniform(*x_range)
+        y = random.uniform(*y_range)
+        z = random.uniform(*z_range)
+
+        infinigen_utils.set_transform_attributes(prim, location=Gf.Vec3f(x, y, z),scale=Gf.Vec3f(scale,scale,scale))
+
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+        UsdPhysics.CollisionAPI.Apply(prim)
+        add_labels(prim, labels=[label], instance_name="class")
+        objs.append(prim)
+
+    return objs
 
 # Run the SDG pipeline on the scenarios
 def run_sdg(config,args):
@@ -274,6 +285,11 @@ def run_sdg(config,args):
     writers_config = config.get("writers", {})
     distractors_config = config.get("distractors", {})
     materials_control_config = config.get("materials_control",{})
+
+    container_config = config.get("containers", {})
+    container_urls = infinigen_utils.get_usd_paths(
+        files=container_config.get("files", []), folders=container_config.get("folders", []), skip_folder_keywords=[".thumbs"]
+    )
 
 
     if args.data_num:
@@ -303,7 +319,7 @@ def run_sdg(config,args):
 
         labeled_assets_config = {"manual_label":[{"url": infinigen_utils.path_to_file_uri(output_path),
                                 "label": infinigen_utils.valid_stage_name(str(Path(input_path).stem)),
-                                "num": 1,
+                                "num": 60,
                                 "gravity_disabled_chance": 0}]}
 
 
@@ -447,6 +463,7 @@ def run_sdg(config,args):
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
     # Start the SDG loop
     env_cycle = cycle(env_urls)
+    container_cycle = cycle(container_urls)
     
     
     capture_counter = 0
@@ -459,15 +476,9 @@ def run_sdg(config,args):
     data_gen_list = []
 
 
-    roll_range = (-15,15) if not args.symmetric else (-180,180)
-    azimuth_range = args.camera_azimuth if not args.symmetric else (0,0)
-    distance_range =camera_distance_to_target_range
-
-
-
-
-
-
+    roll_range = (-15,15)
+    azimuth_range = args.camera_azimuth
+    distance_range = camera_distance_to_target_range # (1.5,1.5)
 
     if not json_str:
 
@@ -487,37 +498,30 @@ def run_sdg(config,args):
 
         data_gen_list.append(train_dict)
 
+    
+    
+    # load env
+    env_url = next(env_cycle)
 
-        val_dict ={'gener':IterPatchSampler(patches=patches,**_get_val_patams(args.val_num)),
-        'writers_init':lambda : writers_init(writers_config,render_products,mode='val')}
-        data_gen_list.append(val_dict)
+    # Load the new environment
+    print(f"[SDG-Infinigen] Loading environment: {env_url}")
+    infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
 
-    else:
-        jd = json.loads(json_str)
-        patch_quota = []
-        for patch_params in jd['patches_params']:
+    # simulation_app.update()
 
-            polar_range = latitude_range_to_polar_range(patch_params['latitude_range'])
-            patch = SpherePatch(
-                polar_range=polar_range,
-                azimuth_range=patch_params['azimuth_range'],
-                distance_range=patch_params.get('distance_range',[1.2,1.8]),
-            )
-            num = int(patch_params.get('num',1000))
+    # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
+    print(f"[SDG-Infinigen] Setting up the environment")
+    infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
+    infinigen_utils.run_simulation(num_frames=3000, render=False)  
+    simulation_app.update()
 
-            patch_quota.append((patch,num))
-
-        gen_dict ={'gener':RandomQuotaSphereCoord(patch_quota),
-        'writers_init': lambda : writers_init(writers_config,render_products,mode='train')}
-        data_gen_list.append(gen_dict)
-
-        
-
-
-
+    
     for data_gener in data_gen_list:
         writers = data_gener['writers_init']()
         gener = iter(data_gener['gener'])
+
+
+
         while True:
             if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
                 break
@@ -526,10 +530,22 @@ def run_sdg(config,args):
 
 
             # Load the next environment
-            env_url = next(env_cycle)
-
-
+            
             infinigen_utils.remove_prim('/Assets',simulation_app)
+
+
+            # Load container
+            container_url = next(container_cycle)
+            infinigen_utils.remove_prim('/Container',simulation_app)
+
+            container_stage_path = '/Container'
+            container_asset = infinigen_utils.load_env(container_url, prim_path=container_stage_path,simulation_app=simulation_app)
+
+            infinigen_utils.add_colliders_to_env(container_stage_path, approximation_type = "none")
+            # infinigen_utils.add_static_collider(container_stage_path)
+            infinigen_utils.set_transform_attributes(container_asset, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([1,random.uniform(.5,1),1]))
+            infinigen_utils.asset_size_adaptive(container_asset,max_limit=0.8,min_limit=0.1,target_value=random.uniform(0.3,0.6))
+
             
             target_assets = []
             
@@ -547,31 +563,14 @@ def run_sdg(config,args):
             
             bind_materials_to_assets(
                 target_assets,classic_materials,
-                is_maintain_material_structure=True,usd_materials_num=10)
+                is_maintain_material_structure=True,usd_materials_num=1)
 
 
-            # Load the new environment
-            print(f"[SDG-Infinigen] Loading environment: {env_url}")
-            root_prim = infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
 
-            # distance_scale = infinigen_utils.calculate_env_adaptive_ratio(target_assets[0],max_limit=0.2,min_limit=0.08,target_value=0.12)
-            distance_scale = 1
-            
+            infinigen_utils.run_simulation(num_frames=3000, render=False)  
 
-            print("scale",distance_scale)
-            if not root_prim.HasAttribute("xformOp:scale"):
-                UsdGeom.Xformable(root_prim).AddScaleOp()
 
-            ori_value = root_prim.GetAttribute("xformOp:scale").Get()
 
-        
-
-            root_prim.GetAttribute("xformOp:scale").Set(ori_value*distance_scale)
-            for i in range(50):
-                simulation_app.update()
-            # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
-            print(f"[SDG-Infinigen] Setting up the environment")
-            infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
             simulation_app.update()
 
 
@@ -593,23 +592,24 @@ def run_sdg(config,args):
 
             # random asset plain
 
-            bind_materials_to_assets(plane_prims,omni_pbr_materials,is_maintain_material_structure=True)
+            bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
             plane_prim = random.choice(plane_prims)
 
 
             for asset_to_adapt in target_assets:
                 
                 # todo tem
-                # rotation = Gf.Vec3f([180,0,0])
-                rotation = Gf.Vec3f([0,0,0])
+                rotation = Gf.Vec3f([180,0,0])
+                #rotation = Gf.Vec3f([0,0,0])
 
 
                 infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
-                # infinigen_utils.asset_size_adaptive(asset_to_adapt,max_limit=0.2,min_limit=0.08,target_value=0.12)
+                infinigen_utils.asset_size_adaptive(asset_to_adapt,max_limit=0.1,min_limit=0.03,target_value=0.5)
                 infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_to_adapt, disable_gravity=0)
             
             # translate the env location to make the plane under target prim
-            infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
+            # infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
+            infinigen_utils.translate_env_under_target_asset(plane_prim,container_asset,(0,0,0))  # (0,-0.12,0) for disk
 
 
             # ⭐⭐我们的主体asset的位置⭐⭐
@@ -662,20 +662,13 @@ def run_sdg(config,args):
             # simulation_app.update()
 
             print(f"\tRandomizing {len(scene_lights)} scene lights properties and locations around the working area")
-            light_offset_range = capture_config.get('lights_offset_range',(-1.5, -0.1, -1.5, 1.5, 0.8, 1.5))
-            light_offset_range = [v*distance_scale for v in light_offset_range]
-
-            lights_loc_range = infinigen_utils.offset_range(light_offset_range, working_area_loc_abs)
-            light_radius_range = capture_config.get('lights_radius_range',(0.5, 0.5))
-            light_radius_range = tuple([v*distance_scale for v in light_radius_range])
-
-
+            # lights_loc_range = infinigen_utils.offset_range(capture_config.get('lights_offset_range',(-1.5, -0.1, -1.5, 1.5, 0.8, 1.5)), working_area_loc_abs)
+            lights_loc_range = infinigen_utils.offset_range(capture_config.get('lights_offset_range',(-0.15, 0.6, -0.15, 0.15, 1.1, 0.15)), working_area_loc_abs)
             infinigen_utils.randomize_lights(
                 scene_lights,
                 location_range=lights_loc_range,
-                intensity_range=capture_config.get('lights_intensity_range',(4000, 6000)),
+                intensity_range=capture_config.get('lights_intensity_range',(4000, 5000)),
                 color_range=capture_config.get('lights_color_range',(0.1, 0.1, 0.1, 0.9, 0.9, 0.9)),
-                radius_range  = light_radius_range,
             )
 
 
@@ -689,7 +682,7 @@ def run_sdg(config,args):
             # # 先用一些仿真帧稳定落位/碰撞
             print(f"\tFixing collisions through physics simulation")
             simulation_app.update()
-            infinigen_utils.run_simulation(num_frames=20, render=True)        
+            infinigen_utils.run_simulation(num_frames=100, render=True)        
             
 
             # Check if the render products need to be enabled for the capture
@@ -715,7 +708,7 @@ def run_sdg(config,args):
 
 
                     infinigen_utils.randomize_camera_poses(
-                        cameras, gener,look_at=tuple(target_asset_center),roll_range=roll_range,distance_scale=distance_scale
+                        cameras, gener,look_at=tuple(target_asset_center),roll_range=roll_range
                     )
 
                     distractors = stage.GetPrimAtPath('/Distractors')
@@ -838,10 +831,16 @@ def o3d_syn_data_copy_to_local(remoteip, username, passdword, syn_data_dir, targ
 
 def main():
 
-    WriterRegistry.register(LMDBWriter)
+    # WriterRegistry.register(LMDBWriter)
+    # (
+    # WriterRegistry._default_writers.append("LMDBWriter")
+    #     if "LMDBWriter" not in WriterRegistry._default_writers
+    #     else None)
+    
+    WriterRegistry.register(LMDBWriter2D)
     (
-    WriterRegistry._default_writers.append("LMDBWriter")
-        if "LMDBWriter" not in WriterRegistry._default_writers
+    WriterRegistry._default_writers.append("LMDBWriter2D")
+        if "LMDBWriter2D" not in WriterRegistry._default_writers
         else None)
 
     # WriterRegistry.register(KPSWriter)

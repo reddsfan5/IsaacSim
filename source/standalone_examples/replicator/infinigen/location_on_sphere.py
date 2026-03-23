@@ -72,7 +72,7 @@ class SpherePatch:
 
     def area_weight(self) -> float:
         p0, p1 = self.polar_range
-        p0, p1 = sorted((max(0.0, p0), min(180.0, p1)))
+        p0, p1 = sorted((min(180.0, max(0.0, p0)), min(180.0, max(0.0, p1))))
 
         dphi = math.radians(self.azimuth_span_deg())
         if dphi <= 0:
@@ -180,17 +180,36 @@ class RandomUniformSphereCoord(PatchSampler):
 
         weights = [p.area_weight() for p in patches]
         total = sum(weights)
+        # if total <= 0:
+        #     raise ValueError("All SpherePatch have zero area.")
+
+        # self._weights = [w / total for w in weights]
+        
         if total <= 0:
-            raise ValueError("All SpherePatch have zero area.")
+            self._weights = [1 for w in weights]
+        else:
 
-        self._weights = [w / total for w in weights]
-
+            self._weights = [w / total for w in weights]
     def __iter__(self):
         for _ in range(self.total_samples):
             patch = random.choices(self.patches, weights=self._weights, k=1)[0]
             yield patch.sample_uniform()
 
+class RandomUniformPolar(PatchSampler):
+    """
+    面积均匀随机采样：
+    - 区域之间：按球面面积权重
+    - 区域之内：严格等面积
+    """
 
+    def __init__(self, patches: list[SpherePatch], total_samples: int):
+        self.patches = patches
+        self.total_samples = total_samples
+
+    def __iter__(self):
+        for _ in range(self.total_samples):
+            patch = random.choice(self.patches)
+            yield patch.sample_uniform()
 
 
 class RandomQuotaSphereCoord(PatchSampler):
@@ -236,38 +255,45 @@ class RandomQuotaSphereCoord(PatchSampler):
 
 
 if __name__ == "__main__":
-    # Example usage
-    # patches = [
-    #     (SpherePatch((10, 15), (0, 90)), 30),
-    #     (SpherePatch((80, 90), (90, 180)), 10),
-    # ]
+    # # Example usage
+    # # patches = [
+    # #     (SpherePatch((10, 15), (0, 90)), 30),
+    # #     (SpherePatch((80, 90), (90, 180)), 10),
+    # # ]
+
+    # # patches = [
+    # # SpherePatch((10, 15), (0, 90)),
+    # # SpherePatch((80, 90), (90, 180)),
+    # # ]
+
 
     # patches = [
-    # SpherePatch((10, 15), (0, 90)),
-    # SpherePatch((80, 90), (90, 180)),
+    # SpherePatch(polar_range=(0, 90), azimuth_range=(-180, 180))
     # ]
 
+    # params_map = {}
 
-    patches = [
-    SpherePatch(polar_range=(0, 90), azimuth_range=(-180, 180))
-    ]
+    # for i in range(1,4):
+    #     for j in range(1,11):
 
-    params_map = {}
+    #         sampler = IterPatchSampler(patches,polar_step_deg=i,azimuth_step_min=j)
+    #         sampler = iter(sampler)
+    #         count = 0
+    #         while True:
+    #             try:
+    #                 next(sampler)
+    #                 count += 1
 
-    for i in range(1,4):
-        for j in range(1,11):
+    #             except StopIteration:
+    #                 break
 
-            sampler = IterPatchSampler(patches,polar_step_deg=i,azimuth_step_min=j)
-            sampler = iter(sampler)
-            count = 0
-            while True:
-                try:
-                    next(sampler)
-                    count += 1
+    #         # print(count)
+    #         params_map[count] = {"polar_step_deg":i,"azimuth_step_min":j}
+    # print(params_map)
 
-                except StopIteration:
-                    break
-
-            # print(count)
-            params_map[count] = {"polar_step_deg":i,"azimuth_step_min":j}
-    print(params_map)
+    patch = SpherePatch(
+        polar_range=(10, 20),
+        azimuth_range=(0, 0),
+        distance_range=(1.0, 1.0)
+    )
+    print(patch.azimuth_span_deg())

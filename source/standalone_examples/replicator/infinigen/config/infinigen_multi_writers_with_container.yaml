@@ -28,6 +28,14 @@ environments:
   
   files: []
 
+containers:
+  folders:
+    # - /Isaac/Samples/Replicator/Infinigen/dining_rooms
+    - file:///data2/isaacsim/assets/container/KLT_Bin
+    # - file:///data2/infinigen_indoor
+
+
+
 capture:
   # Number of captures (frames = total_captures * num_cameras)
   
@@ -35,11 +43,11 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 200
+  num_dropped_captures_per_env: 50
   # Number of cameras to capture from (each camera will have a render product attached)
-  num_cameras: 3
+  num_cameras: 1
   # Resolution of the captured frames
-  resolution: [352, 352] # [640,480]
+  resolution: [1080, 720] # [640,480]
   
   focal_lengths: [50] #[50] [50,35,28,24]
 
@@ -52,13 +60,12 @@ capture:
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: [-0.02,0.02]
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [0.5,1.2] # 0.9,2.5
+  camera_distance_to_target_range: [1.1,1.5] # 0.9,2.5
   # Number of scene lights to create in the working area
-  num_scene_lights: 8
+  num_scene_lights: 18
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
   lights_intensity_range: [2900,3600] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
   lights_color_range: [0.6,0.6,0.6,1,1,1]
-  lights_radius_range: [.5,1]
 
   # camera_loc_yaw_range: [-15,15]
   # polar_angle_range: [70,90]
@@ -66,18 +73,19 @@ capture:
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
 
-  - type: LMDBWriter
+  - type: LMDBWriter2D
     kwargs:
       output_dir: *output_root
       task_id: 007
-      expect_data_num: 3000
-      show_bin: 100
-      cache_capacity: 50
+      occlusion_threshold: 1.
+      show_bin: 50
+      cache_capacity: 10
       format: null # dope ; centerpose
-      skip_empty_frames: true
+      skip_empty_frames: false
       truncation_ratio: 0.5
       visibility_ratio: 0.75
       rotate_threshold: 360
+      is_save_seg_info: false
       
   
   # - type: BasicWriter
@@ -191,7 +199,7 @@ distractors:
       z: [-0.15,-1.5]
     scale_range: [0.02,0.055]
     # Chance to disable gravity for the shape distractors
-    gravity_disabled_chance: 0
+    gravity_disabled_chance: 0.25
     # List of shape types to randomly choose from
     types: ["capsule", "cone", "cylinder", "sphere", "cube"]
 
@@ -206,7 +214,7 @@ distractors:
       z: [0.15,1.5]
     scale_range: [0.15,0.25]
 
-    gravity_disabled_chance: 0
+    gravity_disabled_chance: 0.25
     # List of folders and files to search to randomly choose from
     folders:
       - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/
@@ -237,20 +245,19 @@ materials_control:
     materials_root: /pbr_materials
     # pbr_prob: 0.5
     color: [0,1]
-    num: 100
+    num: 5
     metallic_constant: [0.95,0.99]
     reflection_roughness: [0.01,0.5]
     texture_scale: [.8,1.5]
     translate: [1,50]
-    texture_bg: /data2/isaacsim/bg_img/mixed
-    texture_poliigon: /data2/isaacsim/materials/pbr_texture/ground_plane
+    texture_bg: /data2/isaacsim/bg_img/pure_bg
+    texture_poliigon: /data2/isaacsim/materials/pbr_texture/Metal
 
 
 
-
+ 
 # Hide ceiling, move viewport camera to top-down view above the working area
-debug_mode: false
+debug_mode: true
 headless: true
-
 
 

@@ -241,7 +241,7 @@ def bind_material_to_prim_randomly(prim:UsdGeom.Gprim, mats:list[UsdShade.Materi
     # print(f"----Infinigen-SDG----- [[[Bound material]]] '{bind_material.GetPath().pathString}' to prim '{prim.GetPath().pathString}'")
 
 
-def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],material:UsdShade.Material,bindingStrength:str=UsdShade.Tokens.strongerThanDescendants,subdivision_scheme:Literal['catmullClark','loop','bilinear','none']='catmullClark'):
+def bind_material_to_prim(model_prim:Union[UsdGeom.Gprim,UsdGeom.Subset],material:UsdShade.Material,bindingStrength:str=UsdShade.Tokens.weakerThanDescendants,subdivision_scheme:Literal['catmullClark','loop','bilinear','none']='catmullClark'):
 
     UsdShade.MaterialBindingAPI(model_prim).Bind(material,bindingStrength=bindingStrength)
     if model_prim.IsA(UsdGeom.Mesh):
@@ -296,12 +296,12 @@ def bind_material_to_subset(prim: UsdGeom.Subset, materials: list[UsdShade.Mater
         bind_material_to_prim_randomly(prim, materials)
 
 
-def bind_materials_to_prims_recursively(root_prim:Union[Usd.Prim,Sdf.Path],materials: list[UsdShade.Material],is_mesh_bind_material:bool=False):
+def bind_materials_to_prims_recursively(root_prim:Union[Usd.Prim,Sdf.Path],materials: list[UsdShade.Material],is_mesh_bind_material:bool=False,bindingStrength:str=UsdShade.Tokens.weakerThanDescendants):
     for prim in Usd.PrimRange(root_prim):
         if prim.IsA(UsdGeom.Gprim):
             # print(f'binding:{prim.GetPath()}')
             if is_mesh_bind_material:
-                bind_material_to_prim(prim,random.choice(materials))
+                bind_material_to_prim(prim,random.choice(materials),bindingStrength=bindingStrength)
             random_gprim_color(prim)
             
         elif prim.IsA(UsdGeom.Subset):
@@ -358,8 +358,6 @@ def random_gprim_color(prim:UsdGeom.Gprim):
                                 Sdf.ValueTypeNames.Color3f,
                                 UsdGeom.Tokens.constant)
         pv.Set(color)
-
-
 
 
 
