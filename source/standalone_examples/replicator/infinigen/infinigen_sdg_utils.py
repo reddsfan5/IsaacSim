@@ -365,7 +365,12 @@ def camera_prim_set(cam_prim:Usd.Prim,verticalAperture:float=24.0,
         
 #         set_transform_attributes(cam, location=loc, rotation=Gf.Vec3d((pitch,yaw,roll)),rotate_order="ZXY")
 
-
+def get_asset_size(asset_prim:Usd.Prim):
+    bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
+    target_asset_world_bound_bbox = bbox_cache.ComputeWorldBound(asset_prim)
+    target_asset_world_bound_aligned_range = target_asset_world_bound_bbox.ComputeAlignedRange()
+    target_asset_size = target_asset_world_bound_aligned_range.GetSize()
+    return target_asset_size
 
 
 
@@ -374,17 +379,19 @@ def randomize_camera_poses(
     pose_gener:Iterator,
     look_at: tuple = (0,0,0),  
     roll_range:tuple = (-15,15),
-    distance_scale:float = 1
+    distance_range:Tuple[float,float] = (1,1),
+    # distance_scale:float = 1
 ) -> None:
 
     for cam in cameras:
 
         # 随机机位（Y-UP）
         roll = random.uniform(*roll_range)
-        polar,azimuth,radius = next(pose_gener)
-        radius *= distance_scale
-        # too close may cause exception
-        radius = max(.4,radius)
+        polar,azimuth = next(pose_gener)
+
+        # radius *= distance_scale
+        # too close may cause exception,too big may out of the house
+        radius = min(3,max(.4,random.uniform(*distance_range))) # max(.4,radius)
         
 
         print(f'polar:{polar},azimuth:{azimuth},radius:{radius}')

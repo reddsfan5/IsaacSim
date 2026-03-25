@@ -60,6 +60,8 @@ parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
 parser.add_argument("--gpu",help='gpu select',type=int,default=0)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
+parser.add_argument("--used_material_num",help='how many kinds of materials to use for one asset',type=int,default=10)
+parser.add_argument("--size_ratio",nargs=2,type=float,default=[.5,1],help='target size ratio range')
 parser.add_argument("--symmetric",action='store_true',help='is asset symmetric or not')
 
 print("Received args:", sys.argv)
@@ -70,14 +72,15 @@ if sys.argv[1:]:
 else:
     args_list = [
              "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-7w", 
-            #  "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
-            "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
+             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal", 
+             "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
+            # "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "0","90", 
-             "--data_num", "70000",
+             "--data_num", "10000",
              "--val_num",'9000',
-             "--symmetric"
+             "--size_ratio","0.5","1",
+            #  "--symmetric"
             #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
              ]
     
@@ -258,6 +261,114 @@ def writers_init(writers_config,render_products,mode='train'):
     print(f"[SDG-Infinigen] Created {len(writers)} writers")
     return writers
 
+def calc_distance_range_by_max_dim(
+    focal_px: float,
+    img_w: int,
+    img_h: int,
+    size_l: float,
+    size_w: float,
+    size_h: float,
+    min_ratio: float = 0.3,
+    max_ratio: float = 0.8,
+    use_short_side: bool = True,
+):
+    """
+    根据物体最大尺寸，计算使其在画面中占比位于 [min_ratio, max_ratio] 的可行距离范围。
+
+    参数:
+        focal_px: 焦距（像素单位）
+        img_w, img_h: 图像分辨率
+        size_l, size_w, size_h: 物体长宽高（单位一致即可，如米）
+        min_ratio: 最小占比，默认 0.3
+        max_ratio: 最大占比，默认 0.8
+        use_short_side: True 表示按画面短边计算占比；False 表示按长边计算
+
+    返回:
+        (z_min, z_max)
+        z_min: 最近距离（再近就超过 max_ratio）
+        z_max: 最远距离（再远就小于 min_ratio）
+    """
+    if focal_px <= 0:
+        raise ValueError("focal_px must be > 0")
+    if img_w <= 0 or img_h <= 0:
+        raise ValueError("img_w and img_h must be > 0")
+    if min_ratio <= 0 or max_ratio <= 0 or min_ratio >= max_ratio:
+        raise ValueError("Require 0 < min_ratio < max_ratio")
+    if size_l <= 0 or size_w <= 0 or size_h <= 0:
+        raise ValueError("object sizes must be > 0")
+
+    max_dim = max(size_l, size_w, size_h)
+    ref_size = min(img_w, img_h) if use_short_side else max(img_w, img_h)
+
+    z_min = focal_px * max_dim / (max_ratio * ref_size)
+    z_max = focal_px * max_dim / (min_ratio * ref_size)
+
+    return z_min, z_max
+
+
+
+def calc_distance_range_from_intrinsics(
+    fx: float,
+    fy: float,
+    img_w: int,
+    img_h: int,
+    size_l: float,
+    size_w: float,
+    size_h: float,
+    min_ratio: float = 0.3,
+    max_ratio: float = 0.8,
+    use_short_side: bool = True,
+    focal_strategy: str = "min",
+):
+    """
+    根据相机内参和物体尺寸，计算距离范围。
+    
+    focal_strategy:
+        - "min": 使用 min(fx, fy)，更保守
+        - "max": 使用 max(fx, fy)
+        - "mean": 使用 (fx + fy) / 2
+    """
+    if fx <= 0 or fy <= 0:
+        raise ValueError("fx and fy must be > 0")
+
+    if focal_strategy == "min":
+        focal_px = min(fx, fy)
+    elif focal_strategy == "max":
+        focal_px = max(fx, fy)
+    elif focal_strategy == "mean":
+        focal_px = (fx + fy) / 2.0
+    else:
+        raise ValueError("focal_strategy must be one of: 'min', 'max', 'mean'")
+
+    return calc_distance_range_by_max_dim(
+        focal_px=focal_px,
+        img_w=img_w,
+        img_h=img_h,
+        size_l=size_l,
+        size_w=size_w,
+        size_h=size_h,
+        min_ratio=min_ratio,
+        max_ratio=max_ratio,
+        use_short_side=use_short_side,
+    )
+
+
+
+def get_fx_fy_from_camera_prim(camera_prim, image_width, image_height):
+
+    camera = UsdGeom.Camera(camera_prim)
+
+    focal_length = camera.GetFocalLengthAttr().Get()
+    h_aperture = camera.GetHorizontalApertureAttr().Get()
+    v_aperture = camera.GetVerticalApertureAttr().Get()
+
+    if focal_length is None or h_aperture is None or v_aperture is None:
+        raise ValueError("Camera attributes focalLength/horizontalAperture/verticalAperture are missing")
+
+    fx = focal_length / h_aperture * image_width
+    fy = focal_length / v_aperture * image_height
+
+    return fx,fy
 
 
 
@@ -461,13 +572,12 @@ def run_sdg(config,args):
 
     roll_range = (-15,15) if not args.symmetric else (-180,180)
     azimuth_range = args.camera_azimuth if not args.symmetric else (0,0)
-    distance_range =camera_distance_to_target_range
+
+    img_w,img_h = resolution
+    fx,fy = get_fx_fy_from_camera_prim(cameras[0],img_w,img_h)
 
 
-
-
-
-
+    # distance_range =camera_distance_to_target_range
 
     if not json_str:
 
@@ -478,7 +588,6 @@ def run_sdg(config,args):
         patches = [SpherePatch(
                 polar_range=polar_range,
                 azimuth_range=azimuth_range,
-                distance_range = distance_range
             )]
 
         train_dict = {'gener':RandomUniformSphereCoord(
@@ -501,7 +610,7 @@ def run_sdg(config,args):
             patch = SpherePatch(
                 polar_range=polar_range,
                 azimuth_range=patch_params['azimuth_range'],
-                distance_range=patch_params.get('distance_range',[1.2,1.8]),
+                # distance_range=patch_params.get('distance_range',[1.2,1.8]),
             )
             num = int(patch_params.get('num',1000))
 
@@ -525,8 +634,6 @@ def run_sdg(config,args):
 
 
 
-            # Load the next environment
-            env_url = next(env_cycle)
 
 
             infinigen_utils.remove_prim('/Assets',simulation_app)
@@ -547,31 +654,46 @@ def run_sdg(config,args):
             
             bind_materials_to_assets(
                 target_assets,classic_materials,
-                is_maintain_material_structure=True,usd_materials_num=10)
+                is_maintain_material_structure=False,usd_materials_num=args.used_material_num)
 
 
-            # Load the new environment
-            print(f"[SDG-Infinigen] Loading environment: {env_url}")
-            root_prim = infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
+            target_asset_size = infinigen_utils.get_asset_size(target_assets[0])
+            # bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
+            # target_asset_world_bound_bbox = bbox_cache.ComputeWorldBound(target_assets[0])
+            # target_asset_world_bound_aligned_range = target_asset_world_bound_bbox.ComputeAlignedRange()
+            # target_asset_size = target_asset_world_bound_aligned_range.GetSize()
 
-            # distance_scale = infinigen_utils.calculate_env_adaptive_ratio(target_assets[0],max_limit=0.2,min_limit=0.08,target_value=0.12)
-            distance_scale = 1
+
+            dis_range = calc_distance_range_from_intrinsics(fx,fy,img_w,img_h,float(target_asset_size[0]),float(target_asset_size[1]),float(target_asset_size[2]),min_ratio=args.size_ratio[0],max_ratio=args.size_ratio[1])
+
+
+
+            if not stage.GetPrimAtPath("/Environment"):
+
+                # Load the next environment
+                env_url = next(env_cycle)
+                # Load the new environment
+                print(f"[SDG-Infinigen] Loading environment: {env_url}")
+                root_prim = infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
+
+                # distance_scale = infinigen_utils.calculate_env_adaptive_ratio(target_assets[0],max_limit=0.2,min_limit=0.08,target_value=0.12)
+                distance_scale = 1
+                
+
+                print("scale",distance_scale)
+                if not root_prim.HasAttribute("xformOp:scale"):
+                    UsdGeom.Xformable(root_prim).AddScaleOp()
+
+                ori_value = root_prim.GetAttribute("xformOp:scale").Get()
+
             
 
-            print("scale",distance_scale)
-            if not root_prim.HasAttribute("xformOp:scale"):
-                UsdGeom.Xformable(root_prim).AddScaleOp()
-
-            ori_value = root_prim.GetAttribute("xformOp:scale").Get()
-
-        
-
-            root_prim.GetAttribute("xformOp:scale").Set(ori_value*distance_scale)
-            for i in range(50):
-                simulation_app.update()
-            # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
-            print(f"[SDG-Infinigen] Setting up the environment")
-            infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
+                root_prim.GetAttribute("xformOp:scale").Set(ori_value*distance_scale)
+                for i in range(50):
+                    simulation_app.update()
+                # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
+                print(f"[SDG-Infinigen] Setting up the environment")
+                infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
             simulation_app.update()
 
 
@@ -715,7 +837,7 @@ def run_sdg(config,args):
 
 
                     infinigen_utils.randomize_camera_poses(
-                        cameras, gener,look_at=tuple(target_asset_center),roll_range=roll_range,distance_scale=distance_scale
+                        cameras, gener,look_at=tuple(target_asset_center),roll_range=roll_range,distance_range=dis_range
                     )
 
                     distractors = stage.GetPrimAtPath('/Distractors')

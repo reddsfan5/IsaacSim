@@ -47,7 +47,7 @@ class SpherePatch:
 
     polar_range: Tuple[float, float]       # degrees, [0,180]
     azimuth_range: Tuple[float, float]     # degrees, [-180,180]
-    distance_range: Tuple[float, float] = (1.5, 1.5)
+    # distance_range: Tuple[float, float] = (1.5, 1.5)
 
     @staticmethod
     def wrap_to_180(a: float) -> float:
@@ -80,7 +80,7 @@ class SpherePatch:
 
         return dphi * (math.cos(math.radians(p0)) - math.cos(math.radians(p1)))
 
-    def sample_uniform(self) -> Tuple[float, float, float]:
+    def sample_uniform(self) -> Tuple[float, float]:
         # polar (cos-uniform)
         p0, p1 = self.polar_range
         cmax = math.cos(math.radians(min(p0, p1)))
@@ -100,10 +100,11 @@ class SpherePatch:
             azimuth = self.wrap_to_180(azimuth)
 
         # distance
-        d0, d1 = self.distance_range
-        distance = random.uniform(d0, d1)
+        # d0, d1 = self.distance_range
+        # distance = random.uniform(d0, d1)
 
-        return polar, azimuth, distance
+        # return polar, azimuth, distance
+        return polar, azimuth
 
 
 
