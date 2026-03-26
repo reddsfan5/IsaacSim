@@ -23,7 +23,7 @@ table_max = table_world_bound_aligned_range.GetMax()
 
 cube_path = '/World/cube_for_table'
 air_cube_path = '/World/cube_for_airship'
-air_path = '/Assets/guangzhu/mesh'
+air_path = '/Assets/TuopanS_Mask_blue_unBottom_003/mesh'
 
 
 stage = omni.usd.get_context().get_stage()

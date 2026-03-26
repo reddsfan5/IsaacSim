@@ -1,19 +1,19 @@
     {"configurations": [
-        {
-            "name": "Python: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
+            {
+                "name": "Python: Current File",
+                "type": "python",
+                "request": "launch",
+                "program": "${file}",
             "cwd":"${workspaceFolder}",
             "justMyCode":false,
-            "args": []
+                "args": []
 
 
-        },
-        {
-  "name": "Attach to Remote IsaacSim",
-  "type": "python",
-  "request": "attach",
-  "port": 3000,
+            },
+            {
+                "name": "Attach to Remote IsaacSim",
+                "type": "python",
+                "request": "attach",
+                "port": 3000,
   "host": "127.0.0.1"  // 远程IP
     }]}

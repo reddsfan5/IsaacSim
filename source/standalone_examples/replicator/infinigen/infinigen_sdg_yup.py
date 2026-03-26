@@ -40,7 +40,8 @@ CAMERA_LOCATION_MAP = {9000: {'polar_step_deg': 1, 'azimuth_step_min': 1},
             4000: {'polar_step_deg': 1, 'azimuth_step_min': 4}, 
             3000: {'polar_step_deg': 1, 'azimuth_step_min': 7}, 
             2000: {'polar_step_deg': 2, 'azimuth_step_min': 5}, 
-            1000: {'polar_step_deg': 3, 'azimuth_step_min': 7}}
+            1000: {'polar_step_deg': 3, 'azimuth_step_min': 7},
+            0: {'polar_step_deg': 80, 'azimuth_step_min': 250}}
 
 
 
@@ -61,7 +62,7 @@ parser.add_argument("--add_angle",help='angle compliment',type=str)
 parser.add_argument("--gpu",help='gpu select',type=int,default=0)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
 parser.add_argument("--used_material_num",help='how many kinds of materials to use for one asset',type=int,default=10)
-parser.add_argument("--size_ratio",nargs=2,type=float,default=[.5,1],help='target size ratio range')
+parser.add_argument("--size_ratio",nargs=2,type=float,default=[.3,1.3],help='target size ratio range')
 parser.add_argument("--symmetric",action='store_true',help='is asset symmetric or not')
 
 print("Received args:", sys.argv)
@@ -73,13 +74,13 @@ else:
     args_list = [
              "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
              "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal-test", 
-             "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
+             "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/fadongji1125.glb",  
             # "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "0","90", 
-             "--data_num", "100",
-             "--val_num",'1000',
-             "--size_ratio","0.5","1",
+             "--data_num", "1000",
+             "--val_num",'0',
+             "--size_ratio",".3","2.2",
             #  "--symmetric"
             #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
              ]
@@ -162,7 +163,7 @@ from lv_tools.writer_register import LMDBWriter,KPSWriter
 
 
 def _get_val_patams(val_num:int):
-    val_num = max(1000,min(val_num//1000*1000,9000))
+    val_num = max(1000,min(val_num//1000*1000,9000)) if val_num else 0
     return CAMERA_LOCATION_MAP[val_num]
 
 
@@ -178,7 +179,7 @@ def progress_callback(current_step: int, total: int):
 async def convert_asset_to_usd(input_asset_path, output_asset_path):
     asset_converter_obj = AssetConverterContext()
     asset_converter_obj.single_mesh = True
-    # asset_converter_obj.use_meter_as_world_unit = True
+    asset_converter_obj.use_meter_as_world_unit = True
     asset_converter_obj.merge_all_meshes = True
     asset_converter_obj.convert_stage_up_z = False
     asset_converter_obj.bake_mdl_material = True
@@ -656,13 +657,15 @@ def run_sdg(config,args):
                 target_assets,classic_materials,
                 is_maintain_material_structure=False,usd_materials_num=args.used_material_num)
 
+            # rotation = Gf.Vec3f([180,0,0])
+            rotation = Gf.Vec3f([0,0,0])
 
+            infinigen_utils.set_transform_attributes(target_assets[0], location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
+            infinigen_utils.asset_size_adaptive(target_assets[0])
+
+            # for i in range(50):
+            #     simulation_app.update()
             target_asset_size = infinigen_utils.get_asset_size(target_assets[0])
-            # bbox_cache = UsdGeom.BBoxCache(time=Usd.TimeCode.Default(), includedPurposes=[UsdGeom.Tokens.default_])
-            # target_asset_world_bound_bbox = bbox_cache.ComputeWorldBound(target_assets[0])
-            # target_asset_world_bound_aligned_range = target_asset_world_bound_bbox.ComputeAlignedRange()
-            # target_asset_size = target_asset_world_bound_aligned_range.GetSize()
-
 
             dis_range = calc_distance_range_from_intrinsics(fx,fy,img_w,img_h,float(target_asset_size[0]),float(target_asset_size[1]),float(target_asset_size[2]),min_ratio=args.size_ratio[0],max_ratio=args.size_ratio[1])
 
@@ -678,22 +681,24 @@ def run_sdg(config,args):
 
                 # distance_scale = infinigen_utils.calculate_env_adaptive_ratio(target_assets[0],max_limit=0.2,min_limit=0.08,target_value=0.12)
                 distance_scale = 1
+
                 
 
-                print("scale",distance_scale)
-                if not root_prim.HasAttribute("xformOp:scale"):
-                    UsdGeom.Xformable(root_prim).AddScaleOp()
+                # print("scale",distance_scale)
+                # if not root_prim.HasAttribute("xformOp:scale"):
+                #     UsdGeom.Xformable(root_prim).AddScaleOp()
 
-                ori_value = root_prim.GetAttribute("xformOp:scale").Get()
+                # ori_value = root_prim.GetAttribute("xformOp:scale").Get()
 
             
+                # root_prim.GetAttribute("xformOp:scale").Set(ori_value*distance_scale)
 
-                root_prim.GetAttribute("xformOp:scale").Set(ori_value*distance_scale)
                 for i in range(50):
                     simulation_app.update()
                 # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
                 print(f"[SDG-Infinigen] Setting up the environment")
                 infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
+
             simulation_app.update()
 
 
@@ -723,10 +728,10 @@ def run_sdg(config,args):
                 
                 # todo tem
                 # rotation = Gf.Vec3f([180,0,0])
-                rotation = Gf.Vec3f([0,0,0])
+                # rotation = Gf.Vec3f([0,0,0])
 
 
-                infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
+                # infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
                 # infinigen_utils.asset_size_adaptive(asset_to_adapt,max_limit=0.2,min_limit=0.08,target_value=0.12)
                 infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_to_adapt, disable_gravity=0)
             
