@@ -4,7 +4,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Iterator, List, Tuple
 
-CameraPose = Tuple[float, float, float]  # (polar, azimuth, distance)
+CameraPose = Tuple[float, float]  # (polar, azimuth)
 
 
 
@@ -158,10 +158,11 @@ class IterPatchSampler(PatchSampler):
 
                     while traveled <= span:
                         # distance：iter 模式仍然允许随机
-                        d0, d1 = patch.distance_range
-                        distance = random.uniform(d0, d1)
+                        # d0, d1 = patch.distance_range
+                        # distance = random.uniform(d0, d1)
 
-                        yield round(p, 2), round(a % 360.0, 2), round(distance, 2)
+                        yield round(p, 2), round(a % 360.0, 2)
+                        # yield round(p, 2), round(a % 360.0, 2), round(distance, 2)
 
                         a += step
                         traveled += step
@@ -294,7 +295,6 @@ if __name__ == "__main__":
 
     patch = SpherePatch(
         polar_range=(10, 20),
-        azimuth_range=(0, 0),
-        distance_range=(1.0, 1.0)
+        azimuth_range=(0, 1870),
     )
     print(patch.azimuth_span_deg())

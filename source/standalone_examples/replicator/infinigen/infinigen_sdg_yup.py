@@ -72,13 +72,13 @@ if sys.argv[1:]:
 else:
     args_list = [
              "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal", 
+             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal-test", 
              "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd",  
             # "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "0","90", 
-             "--data_num", "10000",
-             "--val_num",'9000',
+             "--data_num", "100",
+             "--val_num",'1000',
              "--size_ratio","0.5","1",
             #  "--symmetric"
             #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
