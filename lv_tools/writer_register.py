@@ -4,7 +4,7 @@ import os
 import pickle
 import random
 import traceback
-from typing import Union
+from typing import Dict, List,Union
 import cv2
 import time
 from datetime import datetime
@@ -89,6 +89,84 @@ def visualize_depth_gray(depth: np.ndarray, min_depth=None, max_depth=None):
 
     depth_vis[~valid_mask] = 0
     return depth_vis
+
+
+
+
+class LabelRegistry:
+    def __init__(self):
+        self.label_to_id: Dict[str, int] = {}
+        self.id_to_label: List[str] = []
+
+    def get_or_add(self, label: str) -> int:
+        if not isinstance(label, str):
+            raise TypeError(f"label must be str, got {type(label)}")
+
+        label = label.strip()
+
+        if not label:
+            raise ValueError("label cannot be empty")
+
+        if label in self.label_to_id:
+            return self.label_to_id[label]
+
+        label_id = len(self.id_to_label)
+        self.label_to_id[label] = label_id
+        self.id_to_label.append(label)
+
+        return label_id
+
+    def get_id(self, label: str) -> int:
+        return self.label_to_id[label]
+
+    def get_label(self, label_id: int) -> str:
+        return self.id_to_label[label_id]
+
+    def save(self, path: str):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.id_to_label, f, ensure_ascii=False, indent=2)
+
+    @classmethod
+    def load(cls, path: str) -> "LabelRegistry":
+        registry = cls()
+
+        with open(path, "r", encoding="utf-8") as f:
+            registry.id_to_label = json.load(f)
+
+        registry.label_to_id = {
+            label: idx
+            for idx, label in enumerate(registry.id_to_label)
+        }
+
+        registry.validate()
+
+        return registry
+
+    def validate(self):
+        if len(self.label_to_id) != len(self.id_to_label):
+            raise ValueError("label_to_id and id_to_label size mismatch")
+
+        for idx, label in enumerate(self.id_to_label):
+            if self.label_to_id.get(label) != idx:
+                raise ValueError(
+                    f"Inconsistent mapping: label={label}, "
+                    f"id_to_label index={idx}, "
+                    f"label_to_id value={self.label_to_id.get(label)}"
+                )
+
+    def __len__(self):
+        return len(self.id_to_label)
+
+    def __repr__(self):
+        return f"LabelRegistry(num_labels={len(self)})"
+
+
+
+
+
+
+
+
 
 
 
@@ -441,8 +519,8 @@ class LMDBWriter(PoseWriter):
 
             
             # bbox 2d
-            seg_id_to_labels = self._get_idToLabels(semantic_seg_data['idToLabels'])
-            seg_label_to_ids = self._cal_labelToIds(seg_id_to_labels)
+            normalized_id_to_labels = self._get_idToLabels(semantic_seg_data['idToLabels'])
+            seg_label_to_ids = self._cal_labelToIds(normalized_id_to_labels)
 
 
             data_dict['label']=seg_label_to_ids
@@ -663,7 +741,7 @@ class KPSWriter(PoseWriter):
 
 
 
-class LMDBWriter2D(PoseWriter):
+class LMDBWriterMultiAssets(PoseWriter):
 
     RGB_ANNOT_NAME = "rgb"
     CAM_PARAMS_ANNOT_NAME = "camera_params"
@@ -692,6 +770,7 @@ class LMDBWriter2D(PoseWriter):
                  task_id:str= '0000',
                  *args,**kwargs):
  
+        self._label_registry = LabelRegistry()
         self._output_dir = kwargs.get('output_dir','')
         self._truncation_ratio = truncation_ratio
         self._visibility_ratio = visibility_ratio
@@ -702,6 +781,15 @@ class LMDBWriter2D(PoseWriter):
         self._show_bin = show_bin
         self._val_count = 0
         self._data_count = 0
+
+
+        self._init_info = {
+        "classNames": [],
+        "classLabels": {},
+        "ProjectName": "",
+}
+
+        
 
         super().__init__(*args,**kwargs)
 
@@ -718,21 +806,62 @@ class LMDBWriter2D(PoseWriter):
         return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H')
 
 
-    def _get_init_info(self,label:str,points_27:list,scale:float=1):
+    # def _get_init_info(self,label:str,points_27:list,scale:float=1):
         
 
 
-        init_info = {
-            # 当前批次数据类别列表
-            "classNames": [label],
-            "classLabels": {
-            # 类别数据信息
-            label: {
+    #     init_info = {
+    #         # 当前批次数据类别列表
+    #         "classNames": [label],
+    #         "classLabels": {
+    #         # 类别数据信息
+    #         label: {
+    #             # 类别id -- id序列与类别列表顺序一致
+    #             "Label": 0,
+    #             # 3d模型初始位姿的第0 和26 个点坐标
+    #             "ModelBox": [*points_27[0],*points_27[-1]],
+    #             "Scale": scale,
+    #             # 3d 模型初始位姿
+    #             "Point3Ds": points_27,
+    #             # 3d模型初始位姿视图矩阵 -- 默认单位制 -- 一般不需要改
+    #             "Views": [
+    #             [
+    #                 1.0,
+    #                 0.0,
+    #                 0.0,
+    #                 0.0,
+    #                 0.0,
+    #                 1.0,
+    #                 0.0,
+    #                 0.0,
+    #                 0.0,
+    #                 0.0,
+    #                 1.0,
+    #                 0.0,
+    #                 0.0,
+    #                 0.0,
+    #                 0.0,
+    #                 1.0
+    #             ]
+    #             ],
+    #             "ModelType": "",
+    #             # 是否为等比模型
+    #             "equalPhysicalSize": False,
+    #             "ModelPath": "",
+    #             "isProportionalSize": False if scale == 1 else True,
+    #                 }
+    #             },
+    #             "ProjectName": ""
+    #             }
+    #     return init_info
+
+    def _construct_label_info(self,label:str,points_27:list,views=[]):
+        return {
                 # 类别id -- id序列与类别列表顺序一致
-                "Label": 0,
+                "Label": self._label_registry.get_or_add(label),
                 # 3d模型初始位姿的第0 和26 个点坐标
                 "ModelBox": [*points_27[0],*points_27[-1]],
-                "Scale": scale,
+                # "Scale": scale,
                 # 3d 模型初始位姿
                 "Point3Ds": points_27,
                 # 3d模型初始位姿视图矩阵 -- 默认单位制 -- 一般不需要改
@@ -755,7 +884,56 @@ class LMDBWriter2D(PoseWriter):
                     0.0,
                     1.0
                 ]
-                ],
+                ] if not views else views,
+                "ModelType": "",
+                # 是否为等比模型
+                "equalPhysicalSize": False,
+                "ModelPath": "",
+                "isProportionalSize": False,
+                    }
+
+
+
+    def _get_init_info(self,label:str,points_27:list,scale:float=1,views=[]):
+        
+
+        
+
+
+        init_info = {
+            # 当前批次数据类别列表
+            "classNames": self._label_registry.id_to_label,
+            "classLabels": {
+            # 类别数据信息
+            label: {
+                # 类别id -- id序列与类别列表顺序一致
+                "Label": self._label_registry.get_or_add(label),
+                # 3d模型初始位姿的第0 和26 个点坐标
+                "ModelBox": [*points_27[0],*points_27[-1]],
+                # "Scale": scale,
+                # 3d 模型初始位姿
+                "Point3Ds": points_27,
+                # 3d模型初始位姿视图矩阵 -- 默认单位制 -- 一般不需要改
+                "Views": [
+                [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+                ] if not views else views,
                 "ModelType": "",
                 # 是否为等比模型
                 "equalPhysicalSize": False,
@@ -763,7 +941,7 @@ class LMDBWriter2D(PoseWriter):
                 "isProportionalSize": False if scale == 1 else True,
                     }
                 },
-                "ProjectName": ""
+            "ProjectName": ""
                 }
         return init_info
 
@@ -850,7 +1028,11 @@ class LMDBWriter2D(PoseWriter):
 
             distancer_data = annotators_data[self.DISTANCE_TO_IMAGE_PLANE]
             self._frame_data[self.DISTANCE_TO_IMAGE_PLANE] = distancer_data
+            with open('/data2/logs/log/log.txt', 'a') as f:
 
+                f.write(f'[bounding_box_2d]---{bounding_box_2d_data["idToLabels"]}\n')
+                f.write(f'[bounding_box_3d]---{bounding_box_3d_data["idToLabels"]}\n')
+                f.write(f'[seg_data]---{seg_data["idToSemantics"]}\n')
 
 
             # Early exist if empty frames should not be written
@@ -865,18 +1047,23 @@ class LMDBWriter2D(PoseWriter):
             
             add_cuboid_27(self._frame_data)
             add_vfov(self._frame_data)
+
+
+
+
             img_bin = img_arr_to_bytes(rgb_data)
 
             data_dict['img'] = img_bin
 
 
 
-            seg_id_to_labels = self._get_idToLabels(seg_data['idToSemantics'])
+            normalized_id_to_labels = self._get_idToLabels(seg_data['idToSemantics'])
+            print(f"【{seg_data['idToSemantics']}】")
             
             
             ## bbox 2d
 
-            seg_label_to_ids = self._exchange_k_v(seg_id_to_labels)
+            seg_label_to_ids = self._exchange_k_v(normalized_id_to_labels)
             data_dict['label']=seg_label_to_ids
 
             box_2d_id_to_labels = self._get_idToLabels(bounding_box_2d_data['idToLabels'])
@@ -928,9 +1115,20 @@ class LMDBWriter2D(PoseWriter):
 
             data_dict['occlusion_ratio'] =  {prim_path:data[-1] for prim_path,data in zip(bounding_box_2d_data['primPaths'],bounding_box_2d_data['data'].tolist())}
 
+
+
+
+            # bbox 3d
+
+            bbox_3ds = []
+
+            for obj in self._frame_data['objects']:
+                label_id = seg_label_to_ids[obj['label']]
+                bbox_3ds.append([int(label_id),*obj['cuboid_27_screen']])
+
+            data_dict['cuboid_27_screen'] = bbox_3ds
             
-            
-            data_dict['id_to_label'] = seg_id_to_labels
+            data_dict['id_to_label'] = normalized_id_to_labels
             data_dict['prim_path_to_id'] = self._exchange_k_v(seg_data['idToLabels'])
 
             
@@ -1014,26 +1212,34 @@ class LMDBWriter2D(PoseWriter):
             
             
             init_config_file_path = os.path.join(os.path.dirname(self._output_dir),'config.json')
-            if not os.path.exists(init_config_file_path):
+            # update init config
+            # if not os.path.exists(init_config_file_path):
 
-                label = self._frame_data['objects'][0]['label']
-                points_27 = self._frame_data['objects'][0]['cuboid_27_world']
+            for target_asset in self._frame_data['objects']:
 
-                scale = self._frame_data['objects'][0]['local_to_world_transform'][0][0]
+                label = target_asset['label']
+                points_27 = target_asset['cuboid_27_world']
+
+                scale = target_asset['local_to_world_transform'][0][0]
 
                 # 尺寸还原到初始尺寸，而不是场景中使用的尺寸。json中的scale只用作记录，不再用作还原
                 points_27 = (np.array(points_27)/scale).tolist()
 
+                class_label_block = self._construct_label_info(label,points_27)
 
-                init_info = self._get_init_info(label,points_27,scale)
+                self._init_info['classNames'] = self._label_registry.id_to_label
+                self._init_info['classLabels'][label] = class_label_block
 
-                
-                # placeholder for deploy: 我们的项目依赖vfov
-                init_info['vfov'] = round(self._frame_data['camera_data']['vfov'], 2)
+
+                # init_info = self._get_init_info(label,points_27,scale)
 
             
-                with open(init_config_file_path,mode='w',encoding='utf8') as f:
-                    json.dump(init_info,f)
+            # placeholder for deploy: 我们的项目依赖vfov
+            self._init_info['vfov'] = round(self._frame_data['camera_data']['vfov'], 2)
+
+        
+            with open(init_config_file_path,mode='w',encoding='utf8') as f:
+                json.dump(self._init_info,f)
 
 
 

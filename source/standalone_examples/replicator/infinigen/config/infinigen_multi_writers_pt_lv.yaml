@@ -35,11 +35,11 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 30
+  num_dropped_captures_per_env: 15
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 3
   # Resolution of the captured frames
-  resolution: [352, 352] # [640,480]
+  resolution: [352, 352] # [640,480] # 已经由命令行参数覆盖
   
   focal_lengths: [50] #[50] [50,35,28,24]
 
@@ -54,9 +54,9 @@ capture:
   # Distance between the camera and the target object
   camera_distance_to_target_range: [0.5,1.2] # 0.9,2.5
   # Number of scene lights to create in the working area
-  num_scene_lights: 8
+  num_scene_lights: 6
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
-  lights_intensity_range: [2900,3600] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
+  lights_intensity_range: [2600,3500] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
   lights_color_range: [0.6,0.6,0.6,1,1,1]
   lights_radius_range: [.5,1]
 
@@ -68,7 +68,7 @@ writers:
 
   - type: LMDBWriter
     kwargs:
-      output_dir: *output_root
+      output_dir: *output_root    # will be modified at runningtime
       task_id: 007
       expect_data_num: 3000
       show_bin: 100
@@ -227,24 +227,26 @@ distractors:
       - file:///data2/isaacsim/scene/Hospital/Props/SM_MedicalBox_01g.usd
 
 
-materials_control: 
+materials_control:
+  
   classic_materials:
 
     # usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v8.usd
-    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_materials.usd
+    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v9.usd
     scope_path: /general_looks
-  
-  pbr:
+
+  poliigon_mat_from_usd: true 
+  pbr: 
     materials_root: /pbr_materials
     # pbr_prob: 0.5
     color: [0,1]
-    num: 100
+    num: 20
     metallic_constant: [0.95,0.99]
     reflection_roughness: [0.01,0.5]
     texture_scale: [.8,1.5]
     translate: [1,50]
     texture_bg: /data2/isaacsim/bg_img/mixed
-    texture_poliigon: /data2/isaacsim/materials/pbr_texture/ground_plane
+    texture_poliigon: /data2/isaacsim/materials/pbr_texture/Metal
 
 
 

@@ -57,8 +57,9 @@ parser.add_argument("--local_glb_path",help='Local path to the glb files',type=s
 parser.add_argument("--camera_azimuth",help='Camera azimuth angle range',nargs=2,default=[-180,180],type=float,metavar=('azimuth_min','azimuth_max'))
 parser.add_argument("--camera_latitude",help='Camera latitude angle range',nargs=2,default=[-90,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
+parser.add_argument("--resolution",help='capture resolution',type=int,nargs=2,default=[352,352],metavar=('width','height'))
 parser.add_argument("--add_angle",help='angle compliment',type=str)
-parser.add_argument("--gpu",help='gpu select',type=int,default=0)
+parser.add_argument("--gpu",help='gpu select',type=int,default=1)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
 print("Received args:", sys.argv)
  
@@ -68,11 +69,12 @@ if sys.argv[1:]:
 else:
     args_list = [
              "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_with_container.yaml",
-             "--task_id", "symmetric_cylinder_multi_obj_v12_same_env_60_obj_v2", 
-             "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
+             "--task_id", "symmetric_cylinder_multi_obj_v12_same_env_60_obj_v3", 
+             "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",
+            #  "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/fadongji1125.glb",  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "60","90", 
-             "--data_num", "100",
+             "--data_num", "10000",
              '--gpu','0',
              "--val_num",'5000']
     
@@ -148,7 +150,7 @@ import infinigen_sdg_utils as infinigen_utils
 from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch, latitude_range_to_polar_range, polar_range_to_latitude_range
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
-from lv_tools.writer_register import LMDBWriter,KPSWriter,LMDBWriter2D
+from lv_tools.writer_register import LMDBWriterMultiAssets
 
 def _get_val_patams(val_num:int):
     val_num = max(1000,min(val_num//1000*1000,9000))
@@ -282,6 +284,7 @@ def run_sdg(config,args):
         files=env_config.get("files", []), folders=env_config.get("folders", []), skip_folder_keywords=[".thumbs"]
     )
     capture_config = config.get("capture", {})
+    capture_config['resolution'] = args.resolution
     writers_config = config.get("writers", {})
     distractors_config = config.get("distractors", {})
     materials_control_config = config.get("materials_control",{})
@@ -431,7 +434,7 @@ def run_sdg(config,args):
     rt_subframes = capture_config.get("rt_subframes", 3)
 
     # Min and max distance between the camera and the target object
-    camera_distance_to_target_range = capture_config.get("camera_distance_to_target_range", (0.5, 1.5))
+    camera_distance_to_target_range = capture_config.get("camera_distance_to_target_range", (0.5, 2.))
 
     # Number of captures (frames = total_captures * num_cameras)
     # NOTE: if captured frames have no labeled data, they can be skipped (e.g. PoseWriter with skip_empty_frames=True)
@@ -489,7 +492,6 @@ def run_sdg(config,args):
         patches = [SpherePatch(
                 polar_range=polar_range,
                 azimuth_range=azimuth_range,
-                distance_range = distance_range
             )]
 
         train_dict = {'gener':RandomUniformSphereCoord(
@@ -502,6 +504,7 @@ def run_sdg(config,args):
     
     # load env
     env_url = next(env_cycle)
+    
 
     # Load the new environment
     print(f"[SDG-Infinigen] Loading environment: {env_url}")
@@ -557,6 +560,12 @@ def run_sdg(config,args):
             if manual_label_config:
                 manual_floating_assets, manual_falling_assets = infinigen_utils.load_manual_labeled_assets(manual_label_config)
                 target_assets.extend(manual_falling_assets)
+
+            for asset_prim in manual_falling_assets:
+                infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_prim, disable_gravity=0)
+
+
+
             if original_label_config:
                 original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
                 target_assets.extend(original_assets)
@@ -605,7 +614,7 @@ def run_sdg(config,args):
 
                 infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
                 infinigen_utils.asset_size_adaptive(asset_to_adapt,max_limit=0.1,min_limit=0.03,target_value=0.5)
-                infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_to_adapt, disable_gravity=0)
+                # infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_to_adapt, disable_gravity=0)
             
             # translate the env location to make the plane under target prim
             # infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
@@ -708,7 +717,7 @@ def run_sdg(config,args):
 
 
                     infinigen_utils.randomize_camera_poses(
-                        cameras, gener,look_at=tuple(target_asset_center),roll_range=roll_range
+                        cameras, gener,look_at=tuple(target_asset_center),roll_range=roll_range,distance_range=distance_range
                     )
 
                     distractors = stage.GetPrimAtPath('/Distractors')
@@ -837,10 +846,10 @@ def main():
     #     if "LMDBWriter" not in WriterRegistry._default_writers
     #     else None)
     
-    WriterRegistry.register(LMDBWriter2D)
+    WriterRegistry.register(LMDBWriterMultiAssets)
     (
-    WriterRegistry._default_writers.append("LMDBWriter2D")
-        if "LMDBWriter2D" not in WriterRegistry._default_writers
+    WriterRegistry._default_writers.append("LMDBWriterMultiAssets")
+        if "LMDBWriterMultiAssets" not in WriterRegistry._default_writers
         else None)
 
     # WriterRegistry.register(KPSWriter)

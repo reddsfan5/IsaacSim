@@ -14,6 +14,7 @@
 global:
   usd_asset_root: /data2/isaacsim/assets/converted_usd
   output_root: &output_root /data2/data
+  label_filename: labels.txt # todo
 remote:
   username: alva
   password: 123456
@@ -43,26 +44,26 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 50
+  num_dropped_captures_per_env: 10
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 1
   # Resolution of the captured frames
-  resolution: [1080, 720] # [640,480]
+  resolution: [1080, 720] #[1080, 720] # [640,480]
   
   focal_lengths: [50] #[50] [50,35,28,24]
 
   # Disable render products throughout the pipeline, enable them only when capturing the frames
   disable_render_products: true
   # Number of subframes to render (RayTracedLighting) to avoid temporal rendering artifacts (e.g. ghosting)
-  rt_subframes: 20
+  rt_subframes: 50
   # Use PathTracing renderer instead of RayTracedLighting when capturing the frames
   path_tracing: false
   # Offset to avoid the images always being in the image center
   camera_look_at_target_offset: [-0.02,0.02]
   # Distance between the camera and the target object
-  camera_distance_to_target_range: [1.1,1.5] # 0.9,2.5
+  camera_distance_to_target_range: [0.35,2] # 0.9,2.5
   # Number of scene lights to create in the working area
-  num_scene_lights: 18
+  num_scene_lights: 8
   lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
   lights_intensity_range: [2900,3600] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
   lights_color_range: [0.6,0.6,0.6,1,1,1]
@@ -73,12 +74,12 @@ capture:
 writers:
   # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
 
-  - type: LMDBWriter2D
+  - type: LMDBWriterMultiAssets
     kwargs:
       output_dir: *output_root
       task_id: 007
       occlusion_threshold: 1.
-      show_bin: 50
+      show_bin: 10
       cache_capacity: 10
       format: null # dope ; centerpose
       skip_empty_frames: false
@@ -238,7 +239,7 @@ distractors:
 materials_control: 
   classic_materials:
 
-    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v8.usd
+    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v9.usd
     scope_path: /general_looks
   
   pbr:
@@ -258,6 +259,6 @@ materials_control:
  
 # Hide ceiling, move viewport camera to top-down view above the working area
 debug_mode: true
-headless: true
+headless: false
 
 

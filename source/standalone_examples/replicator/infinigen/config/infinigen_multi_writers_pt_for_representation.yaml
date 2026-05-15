@@ -1,0 +1,257 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+global:
+  usd_asset_root: /data2/isaacsim/assets/converted_usd
+  output_root: &output_root /data2/data
+remote:
+  username: alva
+  password: 123456
+  remoteip: 192.168.1.17
+
+environments:
+  # List of background environments (list of folders or files)
+  folders:
+    # - /Isaac/Samples/Replicator/Infinigen/dining_rooms
+    - file:///data2/isaacsim/scene/dining_rooms
+    # - file:///data2/infinigen_indoor
+  
+  files: []
+
+capture:
+  # Number of captures (frames = total_captures * num_cameras)
+  
+  total_captures: &total_captures 200
+  # Number of captures per environment before running the simulation (objects in the air)
+  num_floating_captures_per_env: 0
+  # Number of captures per environment after running the simulation (objects dropped)
+  num_dropped_captures_per_env: 5
+  # Number of cameras to capture from (each camera will have a render product attached)
+  num_cameras: 3
+  # Resolution of the captured frames
+  resolution: [1080, 720] # [352, 352] # [640,480]
+  
+  focal_lengths: [50] #[50] [50,35,28,24]
+
+  # Disable render products throughout the pipeline, enable them only when capturing the frames
+  disable_render_products: true
+  # Number of subframes to render (RayTracedLighting) to avoid temporal rendering artifacts (e.g. ghosting)
+  rt_subframes: 20
+  # Use PathTracing renderer instead of RayTracedLighting when capturing the frames
+  path_tracing: false
+  # Offset to avoid the images always being in the image center
+  camera_look_at_target_offset: [-0.02,0.02]
+  # Distance between the camera and the target object
+  camera_distance_to_target_range: [0.7,1.2] # 0.9,2.5
+  # Number of scene lights to create in the working area
+  num_scene_lights: 4
+  lights_offset_range: [-1.5,-0.1,-1.5,1.5,0.8,1.5]
+  lights_intensity_range: [2900,3600] # 光比控制，光的波动范围大，会导致逆光剪影等效果。
+  lights_color_range: [0.6,0.6,0.6,1,1,1]
+  lights_radius_range: [.5,1]
+
+  # camera_loc_yaw_range: [-15,15]
+  # polar_angle_range: [70,90]
+
+writers:
+  # Type of the writer to use (e.g. PoseWriter, BasicWriter, etc.) and the kwargs to pass to the writer init
+
+  - type: LMDBWriter
+    kwargs:
+      output_dir: *output_root
+      task_id: 007
+      expect_data_num: 3000
+      show_bin: 100
+      cache_capacity: 50
+      format: null # dope ; centerpose
+      skip_empty_frames: true
+      truncation_ratio: 0.5
+      visibility_ratio: 0.75
+      rotate_threshold: 360
+      
+  
+  # - type: BasicWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_basicwriter_lv_1111_disk_kp_v1_0
+  #     rgb: true
+  #     semantic_segmentation: true
+  #     colorize_semantic_segmentation: true
+  #     use_common_output_dir: false
+
+  # - type: PoseWriter
+  #   kwargs:
+  #     output_dir: /data2/data/_out_infinigen_posewriter_lv_1111_disk_kp_v2_0
+  #     format: null # dope ; centerpose
+  #     use_subfolders: false
+  #     write_debug_images: false
+  #     skip_empty_frames: false
+
+
+labeled_assets:
+  # Labeled assets with auto-labeling (e.g. 002_banana -> banana) using regex pattern replacement on the asset name
+  auto_label:
+    # Number of labeled assets to create from the given files/folders list
+    num: 0
+    # Chance to disable gravity for the labeled assets (0.0 - all the assets will fall, 1.0 - all the assets will float)
+    gravity_disabled_chance: 0.01
+    # List of folders and files to search for the labeled assets
+    folders:
+      - file:///data2/isaacsim/assets/individual_assets/Props/YCB/Axis_Aligned/
+    files:
+      - file:///data2/isaacsim/assets/individual_assets/Props/YCB/Axis_Aligned/036_wood_block.usd
+    # Regex pattern to replace in the asset name (e.g. "002_banana" -> "banana")
+    regex_replace_pattern: "^\\d+_"
+    regex_replace_repl: ""
+  target_asset_for_reference:
+    - &base_data
+      url: file:///data2/isaacsim/assets/glb/airship.usd
+      label: base_data
+      num: 1
+      gravity_disabled_chance: 0
+
+    - &airship
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/airship.usd
+      label: airship
+
+    - &jj-withbase
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2.usd
+      label: Warship
+
+    - &jj-nobase
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2_no_base.usd
+      label: Warship_no_base
+
+
+    - &disk
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/converted/729-disk2.usd
+      label: disk
+
+
+    - &tanke
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/tanke/TanKe_3.usd
+      label: tanke
+
+    - &tuopan
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/tuopan/TuopanS_Mask_blue_unBottom_003.usd
+      label: tuopan
+
+    
+    - &gd960
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/converted/GD960-JJ-50HP.usd
+      label: gd960
+
+    - &zsj
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/3dModels/hard/ZSJ.usd
+      label: zsj
+    
+    - &disk_kp
+      <<: *base_data
+      url: file:///data2/isaacsim/assets/glb/keypoint_det/_29_disk2_with_10_normal_kps.usd
+      label: disk_kp      
+    
+
+
+  # Manually labeled assets with specific labels and properties
+  manual_label:
+    - *jj-withbase
+
+  # with original label
+  # original_label:
+  #   - *jj-withbase
+
+
+
+  
+distractors:
+  # Shape distractors (unlabeled background assets) to drop in the scene (e.g. capsules, cones, cylinders)
+  shape_distractors:
+    # Amount of shape distractors to create
+    num: 10
+    location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
+      x: [-1,1]
+      y: [0,0.5]
+      z: [-0.15,-1.5]
+    scale_range: [0.02,0.055]
+    # Chance to disable gravity for the shape distractors
+    gravity_disabled_chance: 0
+    # List of shape types to randomly choose from
+    types: ["capsule", "cone", "cylinder", "sphere", "cube"]
+
+  # Mesh distractors (unlabeled background assets) to drop in the scene
+  mesh_distractors:
+    # Amount of mesh distractors to create
+    num: 10
+    # Chance to disable gravity for the mesh distractors
+    location_range: # [-0.5,0,0.15,0.5,0.1,0.2]
+      x: [-1,1]
+      y: [0,0.5]
+      z: [0.15,1.5]
+    scale_range: [0.15,0.25]
+
+    gravity_disabled_chance: 0
+    # List of folders and files to search to randomly choose from
+    folders:
+      - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Floor_Signs/
+      - /NVIDIA/Assets/DigitalTwin/Assets/Warehouse/Safety/Cones/
+      # - file:///data2/isaacsim/assets/isaacsim_assets/Assets/Isaac/5.0/Isaac/Props/
+
+    files:
+      - file:///data2/isaacsim/scene/Simple_Warehouse/Props/SM_CardBoxD_04_1847.usd
+      - file:///data2/isaacsim/scene/Simple_Warehouse/Props/SM_CardBoxA_01_414.usd
+      - file:///data2/isaacsim/scene/Simple_Warehouse/Props/S_TrafficCone.usd
+      - file:///data2/isaacsim/scene/Simple_Warehouse/Props/S_WetFloorSign.usd
+      - file:///data2/isaacsim/scene/Office/Props/SM_Book_03.usd
+      - file:///data2/isaacsim/scene/Office/Props/SM_Book_34.usd
+      - file:///data2/isaacsim/scene/Office/Props/SM_BookOpen_01.usd
+      - file:///data2/isaacsim/scene/Office/Props/SM_Briefcase.usd
+      - file:///data2/isaacsim/scene/Office/Props/SM_Extinguisher.usd
+      - file:///data2/isaacsim/scene/Hospital/Props/SM_MedicalBag_01a.usd
+      - file:///data2/isaacsim/scene/Hospital/Props/SM_MedicalBox_01g.usd
+
+
+materials_control: 
+  classic_materials:
+
+    usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v9.usd
+    # usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_materials.usd
+    scope_path: /general_looks
+  
+  pbr:
+    materials_root: /pbr_materials
+    # pbr_prob: 0.5
+    color: [0,1]
+    num: 50
+    metallic_constant: [0.95,0.99]
+    reflection_roughness: [0.01,0.5]
+    texture_scale: [.8,1.5]
+    translate: [1,50]
+    texture_bg: /data2/isaacsim/bg_img/mixed
+    texture_poliigon: /data2/isaacsim/materials/pbr_texture
+
+
+
+
+# Hide ceiling, move viewport camera to top-down view above the working area
+debug_mode: true
+headless: false
+
+
+

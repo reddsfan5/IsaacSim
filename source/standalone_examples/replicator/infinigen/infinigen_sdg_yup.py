@@ -31,6 +31,15 @@ import time
 import yaml
 from isaacsim import SimulationApp
 import asyncio
+from enum import Enum
+
+_cur_file_path = Path(__file__).resolve()
+_custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
+sys.path.append(_custom_sys_path)
+
+from lv_tools.material_match import search_topk
+from lv_tools.poliigon_material_selector import MaterialEnum
+
 
 CAMERA_LOCATION_MAP = {9000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
             8000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
@@ -57,13 +66,18 @@ parser.add_argument("--remote_save_root", type=str, help='The remote root folder
 parser.add_argument("--local_glb_path",help='Local path to the glb files',type=str,required=True)
 parser.add_argument("--camera_azimuth",help='Camera azimuth angle range',nargs=2,default=[-180,180],type=float,metavar=('azimuth_min','azimuth_max'))
 parser.add_argument("--camera_latitude",help='Camera latitude angle range',nargs=2,default=[-90,90],type=float,metavar=('polar_min','polar_max'))
+parser.add_argument("--resolution",help='capture resolution',type=int,nargs=2,default=[352,352],metavar=('width','height'))
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
-parser.add_argument("--gpu",help='gpu select',type=int,default=0)
+parser.add_argument("--gpu",help='gpu select',type=int,default=1)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
 parser.add_argument("--used_material_num",help='how many kinds of materials to use for one asset',type=int,default=10)
+parser.add_argument("--material_types",type=str,nargs='*',default=[mat.name for mat in MaterialEnum])
 parser.add_argument("--size_ratio",nargs=2,type=float,default=[.3,1.3],help='target size ratio range')
 parser.add_argument("--symmetric",action='store_true',help='is asset symmetric or not')
+parser.add_argument("--target_photo_path",help='target photos for mat compare',type=str)
+parser.add_argument("--weights",help='weights of normal_data specified_data auto_matched_data',type=float,nargs=3,default=None)
+
 
 print("Received args:", sys.argv)
  
@@ -72,20 +86,57 @@ if sys.argv[1:]:
     args, unknown = parser.parse_known_args()
 else:
     args_list = [
-             "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
-             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal-test", 
-             "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/fadongji1125.glb",  
+             "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv_debug.yaml",
+            #  "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_for_representation.yaml",
+            #  "--config", "source/standalone_examples/replicator/infinigen/config/infinigen_multi_writers_pt_lv.yaml",
+             "--task_id", "symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal-test111", 
+             "--local_glb_path", "/data2/isaacsim/assets/glb/3dModels/hard/pre/JJ_2_no_base.usd",
+            #  "--local_glb_path", "/data2/isaacsim/assets/glb/SAM4030.glb",  
             # "--local_glb_path", "/data2/isaacsim/assets/glb/Gangzhu_top_003.glb",  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "0","90", 
-             "--data_num", "1000",
+             "--data_num", "10",
              "--val_num",'0',
-             "--size_ratio",".3","2.2",
+             "--gpu", "0",
+             "--resolution", "1080","720",
+             "--size_ratio",".5","1.2",
+             "--used_material_num","30",
+             "--target_photo_path",'/data2/target_photo/test1.jpg',
+             "--weights",'0','0','1',
+            #  "--material_types",MaterialEnum.metal.name, # MaterialEnum.wood.name
             #  "--symmetric"
             #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
              ]
     
     args, unknown = parser.parse_known_args(args_list)
+
+
+print("================work_dir=================:", os.getcwd())
+
+if args.target_photo_path  and os.path.isfile(args.target_photo_path):
+    args.weights = args.weights if args.weights else [1,1,1]
+    results = search_topk(
+    query_image_path=args.target_photo_path,
+    feature_library_path="material_features.pkl",
+    topk=10,
+    crop_ratio=0.3,
+    )
+    matched_material_name = {os.path.splitext(r['name'])[0] for r in results}
+    print("matched_material:",matched_material_name)
+
+
+else:
+    args.weights = args.weights if args.weights else [1,1,0]
+
+    
+
+
+
+
+
+
+
+
 
 args_config = {}
 if args.config and os.path.isfile(args.config):
@@ -104,6 +155,7 @@ config = args_config
 lmdb_output_dir  = os.path.join(config['writers'][0]['kwargs']['output_dir'],str(args.task_id)) 
 
 config['writers'][0]['kwargs']['output_dir'] = lmdb_output_dir
+
 
 
 
@@ -144,19 +196,19 @@ import omni.kit.asset_converter as converter
 from omni.kit.asset_converter import AssetConverterContext
 
 from isaacsim.core.utils.semantics import get_labels
+
 import omni.client
 import omni.kit
 import omni.physx
 import omni.timeline
 
-_cur_file_path = Path(__file__).resolve()
-_custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
-sys.path.append(_custom_sys_path)
+
 
 import infinigen_sdg_utils as infinigen_utils
 from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch, latitude_range_to_polar_range, polar_range_to_latitude_range
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
 
+from lv_tools.dir_rm import clear_dir_if_exceeds
 from lv_tools.writer_register import LMDBWriter,KPSWriter
 
 
@@ -207,11 +259,13 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
 
 
     omni_pbr_materials = []
-    for _ in range(materials_control_config['pbr']['num']):
-        mat_name,material_cur = mat_map.choice()
+    for i,(mat_name,material_cur) in enumerate(mat_map):
+        if i>=materials_control_config['pbr']['num']:break
+    # for _ in range(materials_control_config['pbr']['num']):
+    #     mat_name,material_cur = mat_map.choice()
         
-        texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
-        # texture_path = material_cur.get('col')
+        # texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
+        texture_path = material_cur.get('col')
         normal_texture_path = material_cur.get('nrm')
         roughness_texture_path = material_cur.get('rough')
         metallic_texture_path = material_cur.get('refl')
@@ -371,18 +425,24 @@ def get_fx_fy_from_camera_prim(camera_prim, image_width, image_height):
 
     return fx,fy
 
-
+def wait_if_pause_requested(pause_dir: str | Path):
+    pause_dir = Path(pause_dir)
+    while any(f for f in pause_dir.iterdir() if f.is_file() and f.suffix == ".pause"):
+        simulation_app.update()
+        time.sleep(0.05)
 
 # Run the SDG pipeline on the scenarios
 def run_sdg(config,args):
 
     # ⭐加载配置⭐
     # Load the config parameters
+    
     env_config = config.get("environments", {})
     env_urls = infinigen_utils.get_usd_paths(
         files=env_config.get("files", []), folders=env_config.get("folders", []), skip_folder_keywords=[".thumbs"]
     )
     capture_config = config.get("capture", {})
+    capture_config['resolution'] = args.resolution
     writers_config = config.get("writers", {})
     distractors_config = config.get("distractors", {})
     materials_control_config = config.get("materials_control",{})
@@ -424,7 +484,7 @@ def run_sdg(config,args):
         return
 
 
-    mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
+    
 
     # ⭐创建stage，并设置向上轴⭐
     # Create a new stage
@@ -534,7 +594,7 @@ def run_sdg(config,args):
     total_captures = capture_config.get("total_captures", 0)
 
     # Number of captures per environment with the objects in the air or dropped
-    num_floating_captures_per_env = capture_config.get("num_floating_captures_per_env", 0)
+    # num_floating_captures_per_env = capture_config.get("num_floating_captures_per_env", 0)
     num_dropped_captures_per_env = capture_config.get("num_dropped_captures_per_env", 0)
 
     
@@ -544,17 +604,40 @@ def run_sdg(config,args):
     
     materials = []
 
-
+    matched_materials = []
     # # 将材质USD文件作为引用添加到当前舞台
-    usd_file_path = materials_control_config['classic_materials']['usd_file_path']
-    classic_materials_prim_path = materials_control_config['classic_materials']['scope_path']
-    add_reference_to_stage(usd_path=usd_file_path, prim_path=classic_materials_prim_path)
+    usd_file_paths = [MaterialEnum[material_type_name].file_path for material_type_name in args.material_types]
+    classic_materials_prim_path = ''
+    for usd_file_path in usd_file_paths:
+        # usd_file_path = materials_control_config['classic_materials']['usd_file_path']
+        classic_materials_prim_path = materials_control_config['classic_materials']['scope_path']
+        add_reference_to_stage(usd_path=usd_file_path, prim_path=classic_materials_prim_path)
     classic_materials = infinigen_utils.find_materials(stage, f"{classic_materials_prim_path}")
+    
     materials.extend(classic_materials)
 
+    with open('/data2/logs/log/mat.txt', 'a') as f:
+            for mat in classic_materials:
+                f.write(f'{mat.GetPath().name}\n') # print(mat.GetPath().name)
+                if mat.GetPath().name in matched_material_name:
+                    matched_materials.append(mat)
 
-    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,mat_map=mat_map)
+
+
+
+    if not materials_control_config.get('poliigon_mat_from_usd',True):
+        mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
+        omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,mat_map=mat_map)
+    else:
+        usd_file_paths = [MaterialEnum[material_type_name].file_path for material_type_name in [m.name for m in MaterialEnum]]
+        pbr_materials_prim_path = ''
+        for usd_file_path in usd_file_paths:
+            pbr_materials_prim_path = materials_control_config['pbr']['materials_root']
+            add_reference_to_stage(usd_path=usd_file_path, prim_path=pbr_materials_prim_path)
+        omni_pbr_materials = infinigen_utils.find_materials(stage, f"{pbr_materials_prim_path}")
     materials.extend(omni_pbr_materials)
+
+
     
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
     # Start the SDG loop
@@ -592,7 +675,7 @@ def run_sdg(config,args):
             )]
 
         train_dict = {'gener':RandomUniformSphereCoord(
-                patches=patches,total_samples=capture_config.get("total_captures", 0)),
+                patches=patches,total_samples=total_captures),
         'writers_init':lambda : writers_init(writers_config,render_products,mode='train')}
 
         data_gen_list.append(train_dict)
@@ -653,9 +736,11 @@ def run_sdg(config,args):
                 original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
                 target_assets.extend(original_assets)
             
+            mats_for_target = random.choices([classic_materials,omni_pbr_materials,matched_materials],weights=args.weights,k=1)[0]
+
             bind_materials_to_assets(
-                target_assets,classic_materials,
-                is_maintain_material_structure=False,usd_materials_num=args.used_material_num)
+                target_assets,mats_for_target,
+                is_maintain_material_structure=False,usd_materials_num=min(args.used_material_num,len(mats_for_target)))
 
             # rotation = Gf.Vec3f([180,0,0])
             rotation = Gf.Vec3f([0,0,0])
@@ -708,6 +793,7 @@ def run_sdg(config,args):
             match_string = random.choice(["TableDining"])
             # match_string = random.choice(["TableDining",'floor'])
             root_path= '/Environment'
+            
 
             plane_prims = infinigen_utils.find_matching_prims(
                 match_strings=[match_string], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
@@ -724,7 +810,7 @@ def run_sdg(config,args):
             plane_prim = random.choice(plane_prims)
 
 
-            for asset_to_adapt in target_assets:
+            # for asset_to_adapt in target_assets:
                 
                 # todo tem
                 # rotation = Gf.Vec3f([180,0,0])
@@ -733,7 +819,6 @@ def run_sdg(config,args):
 
                 # infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
                 # infinigen_utils.asset_size_adaptive(asset_to_adapt,max_limit=0.2,min_limit=0.08,target_value=0.12)
-                infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_to_adapt, disable_gravity=0)
             
             # translate the env location to make the plane under target prim
             infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
@@ -793,7 +878,7 @@ def run_sdg(config,args):
             light_offset_range = [v*distance_scale for v in light_offset_range]
 
             lights_loc_range = infinigen_utils.offset_range(light_offset_range, working_area_loc_abs)
-            light_radius_range = capture_config.get('lights_radius_range',(0.5, 0.5))
+            light_radius_range = capture_config.get('lights_radius_range',(0.3, 0.3))
             light_radius_range = tuple([v*distance_scale for v in light_radius_range])
 
 
@@ -831,12 +916,16 @@ def run_sdg(config,args):
 
 
                 for i in range(num_dropped_captures_per_env):
+
+
                     # Check if the total captures have been reached
                     # if capture_counter >= total_captures:
                     #     break
 
                     if any(exit_file for exit_file in Path(lmdb_output_dir).iterdir() if exit_file.is_file() and exit_file.suffix == ".exit"):
                         break
+
+                    wait_if_pause_requested(lmdb_output_dir)
                     # Spawn the cameras with a smaller polar angle to have mostly a top-down view of the objects
                     print(f"\tRandomizing camera poses")
 
@@ -848,7 +937,10 @@ def run_sdg(config,args):
                     distractors = stage.GetPrimAtPath('/Distractors')
 
                     # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
-                    bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
+                    # bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
+
+
+                    bind_materials_to_prims_recursively(root_prim,omni_pbr_materials,is_mesh_bind_material=True)
                     bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
                     
                     # todo random visibility ,may result in unexpected exit
@@ -986,7 +1078,16 @@ def main():
     #     rep.set_global_seed(11)
 
     # Start the SDG pipeline
+
+
     print(f"[SDG-Infinigen] Starting the SDG pipeline.")
+    
+    clear_dir_if_exceeds(
+    "/home/ubuntu/.cache/ov/texturecache",
+    threshold_bytes=2000 * 1024**3,
+    exclude_names=[".keep"],
+    dry_run=False,  # 先预演，确认无误后改成 False
+)
     run_sdg(config,args)
     print(f"[SDG-Infinigen] SDG pipeline finished.")
 

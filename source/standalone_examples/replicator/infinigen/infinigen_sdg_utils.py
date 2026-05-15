@@ -132,16 +132,14 @@ def convert_rotated_location_to_abs(rotated_location):
 
 
 
-def add_colliders_and_rigid_body_dynamics(prim: Usd.Prim, disable_gravity: bool = False) -> None:
+def add_colliders_and_rigid_body_dynamics_placeholder(prim: Usd.Prim, disable_gravity: bool = False) -> None:
     """Add colliders and rigid body dynamics properties to a prim, with optional gravity setting."""
-    # add_colliders(prim)
-    # add_rigid_body_dynamics(prim, disable_gravity)
-    
-    # do nothing
-    # lock_rotation_axes(str(prim.GetPath()), lock_x=True, lock_y=False, lock_z=True)
     pass
 
-
+def add_colliders_and_rigid_body_dynamics(prim: Usd.Prim, disable_gravity: bool = False) -> None:
+    """Add colliders and rigid body dynamics properties to a prim, with optional gravity setting."""
+    add_colliders(prim)
+    add_rigid_body_dynamics(prim, disable_gravity)
 
 # def sphere_coord_to_world_loc(origin:tuple[float,float,float],polar:float,azimuth:float,radius:float):
 #     '''
@@ -379,7 +377,7 @@ def randomize_camera_poses(
     pose_gener:Iterator,
     look_at: tuple = (0,0,0),  
     roll_range:tuple = (-15,15),
-    distance_range:Tuple[float,float] = (1,1),
+    distance_range:Tuple[float,float] = (1,2),
     # distance_scale:float = 1
 ) -> None:
 
@@ -637,7 +635,7 @@ def create_shape_distractors(
         name_prefix = "floating_" if disable_gravity else "falling_"
         prim_path = omni.usd.get_stage_next_free_path(stage, f"{root_path}/{name_prefix}{rand_shape}", False)
         prim = stage.DefinePrim(prim_path, rand_shape.capitalize())
-        add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
+        # add_colliders_and_rigid_body_dynamics_placeholder(prim, disable_gravity=disable_gravity)
         (floating_shapes if disable_gravity else falling_shapes).append(prim)
     return floating_shapes, falling_shapes
 
@@ -668,7 +666,7 @@ def create_mesh_distractors(
         except Exception as e:
             print(f"[SDG-Infinigen] Failed to load mesh distractor reference {rand_mesh_url} with exception: {e}")
             continue
-        add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
+        # add_colliders_and_rigid_body_dynamics_placeholder(prim, disable_gravity=disable_gravity)
         (floating_meshes if disable_gravity else falling_meshes).append(prim)
     return floating_meshes, falling_meshes
 
@@ -717,7 +715,7 @@ def create_auto_labeled_assets(
         except Exception as e:
             print(f"[SDG-Infinigen] Failed to load mesh distractor reference {asset_url} with exception: {e}")
             continue
-        add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
+        # add_colliders_and_rigid_body_dynamics_placeholder(prim, disable_gravity=disable_gravity)
         remove_old_labels(prim, include_descendants=True)
         remove_new_labels(prim,include_descendants=True)
         add_labels(prim, labels=[label], instance_name="class")
@@ -776,7 +774,7 @@ def create_labeled_assets(
 
         prim = add_reference_to_stage(usd_path=asset_url, prim_path=prim_path)
 
-        add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
+        # add_colliders_and_rigid_body_dynamics_placeholder(prim, disable_gravity=disable_gravity)
         
         
         
@@ -800,13 +798,10 @@ def create_original_assets(
     )
     falling_assets = []
     for _ in range(num_assets):
-        disable_gravity = random.random() < gravity_disabled_chance
         name_prefix = "falling_"
         prim_path = omni.usd.get_stage_next_free_path(stage, f"{root_path}/{name_prefix}{label}", False)
 
-        prim = add_reference_to_stage(usd_path=asset_url, prim_path=prim_path)
-        add_colliders_and_rigid_body_dynamics(prim, disable_gravity=disable_gravity)
-        
+        prim = add_reference_to_stage(usd_path=asset_url, prim_path=prim_path)        
 
         falling_assets.append(prim)
     return falling_assets
@@ -950,6 +945,7 @@ def run_simulation(num_frames: int, render: bool = True) -> None:
                 import ctypes
                 # todo lv
                 physx_scene = PhysxSchema.PhysxSceneAPI.Apply(prim)
+                physx_scene.CreateGpuFoundLostPairsCapacityAttr().Set(2 * 1024 **3)
                 physx_scene.CreateGpuTempBufferCapacityAttr(2 * 1024 **3)
                 # 计算4GB对应的字节数（4,294,967,296），但需确保不超过uint32上限
                 heap_capacity = 4 * 1024**3  # 等同于 4294967296

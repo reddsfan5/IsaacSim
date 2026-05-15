@@ -5,7 +5,7 @@ import os
 import sys
 sys.path.append('/home/ubuntu/lxd/lxd_code/isaacsim')
 # from source.standalone_examples.replicator.infinigen.infinigen_sdg_utils import find_matching_prims
-# root_path = '/World'
+# root_path = '/Environment'
 
 # table_prim = find_matching_prims(
 #     match_strings=["floor"], root_path=root_path, prim_type="Xform", first_match_only=True
@@ -75,7 +75,7 @@ root_path = '/Environment'
 # add_reference_to_stage(usd_path=usd_file_path, prim_path=prim_path)
 
 stage = omni.usd.get_context().get_stage()
-
+UsdGeom.SetStageUpAxis(stage,UsdGeom.Tokens.y)
 # Get the plane prim 
 
 match_string = "TableDining"
@@ -83,17 +83,17 @@ match_string = "TableDining"
 # root_path= '/Environment'
 plane_prims = find_matching_prims(
     match_strings=[match_string], root_path=root_path, prim_type="Xform", first_match_only=False,exception_prim_strings=[
-    '/World/dining_room_4/TableDiningFactory_3810673__spawn_asset_8768607__001',
-    '/World/dining_room_5/TableDiningFactory_6160158__spawn_asset_9053640__001'
-    '/World/dining_room_6/TableDiningFactory_5756319__spawn_asset_664843__001',
-    '/World/dining_room_8/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS']
+    '/Environment/dining_room_4/TableDiningFactory_3810673__spawn_asset_8768607__001',
+    '/Environment/dining_room_5/TableDiningFactory_6160158__spawn_asset_9053640__001'
+    '/Environment/dining_room_6/TableDiningFactory_5756319__spawn_asset_664843__001',
+    '/Environment/dining_room_8/TableDiningFactory_8694695__spawn_asset_1032784__001_SPLIT_GLAS']
 )
 print(plane_prims)
 table_prim = random.choice(plane_prims)
 
 
 
-target_prim = stage.GetPrimAtPath('/Assets/falling__007')
+target_prim = stage.GetPrimAtPath('/Assets/SAM4030')
 
 print(os.path.basename(str(table_prim.GetPath())))
 

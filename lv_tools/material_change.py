@@ -42,7 +42,8 @@ class MaterialTexture:
         mat_map = defaultdict(dict)
 
         for file_path in Path(root).rglob('*'):
-            if file_path.suffix == '.jpg':
+            if file_path.suffix.lower() in ('.jpg','.png'):
+            # if file_path.suffix.lower() in ('.png'):
                 key_word = self._match_key_info(file_path.name)
                 if key_word:
                     rel_path = file_path.relative_to(root)
@@ -57,6 +58,12 @@ class MaterialTexture:
     def choice(self):
         k = random.choice(list(self.mats.keys()))
         return k,self.mats[k]
+    
+    def __iter__(self):
+        items = list(self.mats.items())
+        random.shuffle(items)
+        gener = ((k, v) for k, v in items)
+        return gener
 
 class OmniPBRPlus(OmniPBR):
     '''
