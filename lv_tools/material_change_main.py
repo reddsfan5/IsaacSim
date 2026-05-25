@@ -22,8 +22,8 @@ from omni.isaac.core.utils.stage import add_reference_to_stage
 # target_asset_stage_path = '/Assets'
 env_asset_stage_path = '/Environment'
 target_asset_stage_path = env_asset_stage_path
-pbr_material_stage_path = '/pbr_materials'
-# pbr_material_stage_path = '/general_looks'
+# pbr_material_stage_path = '/pbr_materials'
+pbr_material_stage_path = '/general_looks'
 general_material_stage_path = '/general_looks'
 stage = omni.usd.get_context().get_stage()
 # 指定USD文件路径和期望在舞台中的根路径（Prim Path）

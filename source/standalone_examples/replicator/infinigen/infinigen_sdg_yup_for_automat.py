@@ -71,12 +71,13 @@ parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
 parser.add_argument("--gpu",help='gpu select',type=int,default=1)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
-parser.add_argument("--used_material_num",help='how many kinds of materials to use for one asset',type=int,default=20)
+parser.add_argument("--used_material_num",help='how many kinds of materials to use for one asset',type=int,default=10)
 parser.add_argument("--material_types",type=str,nargs='*',default=[mat.name for mat in MaterialEnum])
 parser.add_argument("--size_ratio",nargs=2,type=float,default=[.3,1.3],help='target size ratio range')
 parser.add_argument("--symmetric",action='store_true',help='is asset symmetric or not')
 parser.add_argument("--target_photo_path",help='target photos for mat compare',type=str)
 parser.add_argument("--weights",help='weights of normal_data specified_data auto_matched_data',type=float,nargs=3,default=None)
+parser.add_argument("--vfov",help='vfov',type=float,default=17)
 
 
 print("Received args:", sys.argv)
@@ -99,10 +100,11 @@ else:
              "--val_num",'0',
              "--gpu", "0",
              "--resolution", "1080","720",
-             "--size_ratio",".5","1.2",
+             "--size_ratio",".9","1.2",
              "--used_material_num","30",
              "--target_photo_path",'/data2/target_photo/test1.jpg',
              "--weights",'0','0','1',
+             "--vfov","50"
             #  "--material_types",MaterialEnum.metal.name, # MaterialEnum.wood.name
             #  "--symmetric"
             #  "--add_angle",'{"patches_params": [{"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1, 1.1], "num": 100}, {"latitude_range": [0, 0], "azimuth_range": [-180, 180], "distance_range": [1.1, 1.2], "num": 100}]}'
@@ -425,6 +427,21 @@ def get_fx_fy_from_camera_prim(camera_prim, image_width, image_height):
 
     return fx,fy
 
+def get_focal_length_from_vertical_fov(camera_prim, vertical_fov_deg):
+    camera = UsdGeom.Camera(camera_prim)
+
+    v_aperture = camera.GetVerticalApertureAttr().Get()
+    if v_aperture is None:
+        raise ValueError("Camera verticalAperture is missing")
+
+    vertical_fov_rad = math.radians(vertical_fov_deg)
+
+    focal_length = v_aperture / (2.0 * math.tan(vertical_fov_rad / 2.0))
+
+    return focal_length
+
+
+
 def wait_if_pause_requested(pause_dir: str | Path):
     pause_dir = Path(pause_dir)
     while any(f for f in pause_dir.iterdir() if f.is_file() and f.suffix == ".pause"):
@@ -518,10 +535,12 @@ def run_sdg(config,args):
     # Create the cameras
     cameras = []
     num_cameras = capture_config.get("num_cameras", 0)
-    focalLengths = capture_config.get('focal_lengths',[15,24,28,35,50])
+    # focalLengths = capture_config.get('focal_lengths',[15,24,28,35,50])
     for i in range(num_cameras):
         cam_prim = stage.DefinePrim(f"/Cameras/cam_{i}", "Camera")
-        cam_prim.GetAttribute("focalLength").Set(focalLengths[i%len(focalLengths)])
+
+        focalLength = get_focal_length_from_vertical_fov(cam_prim,args.vfov)
+        cam_prim.GetAttribute("focalLength").Set(focalLength)
         cam_prim.GetAttribute("clippingRange").Set((0.25, 1000))
         cameras.append(cam_prim)
     print(f"[SDG-Infinigen] Created {len(cameras)} cameras")

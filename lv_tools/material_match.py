@@ -6,12 +6,53 @@ from pathlib import Path
 import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern
+from PIL import Image
+from torchvision import transforms
+import torch.nn.functional as F
 
+
+import torch
+import timm
+from safetensors.torch import load_file
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 
-def center_crop(img, crop_ratio=0.75):
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+# device = 'cpu'
+
+# 创建模型结构
+model = timm.create_model(
+    'vit_base_patch14_dinov2',
+    pretrained=False,
+    num_classes=0,
+)
+
+# 加载本地权重
+state_dict = load_file(
+    '/data2/hf_cache/model.safetensors'
+)
+
+model.load_state_dict(state_dict, strict=True)
+
+model.eval().to(device)
+
+
+transform = transforms.Compose([
+    transforms.Resize((518, 518)),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=(0.485, 0.456, 0.406),
+        std=(0.229, 0.224, 0.225),
+    )
+])
+
+
+
+def center_crop(img, crop_ratio=0.2):
     h, w = img.shape[:2]
     cw = int(w * crop_ratio)
     ch = int(h * crop_ratio)
@@ -82,7 +123,7 @@ def extract_edge_hist(img, bins=32):
 def extract_image_feature(
     image_path,
     image_size=256,
-    crop_ratio=0.75,
+    crop_ratio=0.2,
 ):
     img = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
 
@@ -97,13 +138,40 @@ def extract_image_feature(
     edge_feat = extract_edge_hist(img)
 
     feature = np.concatenate([
-        hsv_feat * 0.60,
-        lbp_feat * 0.25,
-        edge_feat * 0.15,
+        hsv_feat * 0.85,
+        lbp_feat * 0.05,
+        edge_feat * 0.1,
     ]).astype("float32")
 
 
     return l2_normalize(feature)
+
+
+
+
+
+# @torch.no_grad()
+# def extract_image_feature(image_path,image_size=256,crop_ratio=0.75,):
+#     img = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+
+#     if img is None:
+#         raise ValueError(f"无法读取图像: {image_path}")
+
+#     img = center_crop(img, crop_ratio=crop_ratio)
+#     img = cv2.resize(img, (image_size, image_size), interpolation=cv2.INTER_AREA)
+
+#     # img = Image.open(image_path).convert("RGB")
+#     img = Image.fromarray(img)
+
+#     x = transform(img).unsqueeze(0).to(device)
+
+#     feat = model(x)
+
+#     feat = F.normalize(feat, dim=-1)
+
+#     return feat.squeeze().cpu().numpy()
+
+
 
 
 def collect_images(folder):
@@ -185,40 +253,63 @@ def search_topk(
 
 
 if __name__ == "__main__":
-    sub_dir = 'test6'
+    print(os.getcwd())
+    sub_dir = 'test10'
     # # 第一次运行：构建材质特征库
-    # build_feature_library(
-    #     image_folder=r"F:\dataset\Omniverse\materials\material_sphere",
-    #     save_path="material_features.pkl",
-    #     crop_ratio=0.3,
-    # )
+    build_feature_library(
+        image_folder=r"/data2/isaacsim/materials/material_sphere",
+        save_path="material_features.pkl",
+        crop_ratio=0.2,
+    )
 
 
     # 查询：给定目标图，找最像的10张材质图
     results = search_topk(
-        query_image_path=fr"F:\dataset\Omniverse\materials\test\{sub_dir}/img.jpg",
+        query_image_path=fr"/data2/target_photo/{sub_dir}/img.jpg",
         feature_library_path="material_features.pkl",
-        topk=10,
-        crop_ratio=0.3,
+        topk=20,
+        crop_ratio=0.2,
     )
 
     print("\nTop 10 相似材质：")
     for i, r in enumerate(results, 1):
         print(f"{i:02d}. score={r['score']:.4f} | {r['name']}")
-        shutil.copy(os.path.join(r'F:\dataset\Omniverse\materials\material_sphere',r['name']),os.path.join(rf'F:\dataset\Omniverse\materials\test\{sub_dir}',r['name']))
+        shutil.copy(os.path.join(r'/data2/isaacsim/materials/material_sphere',r['name']),os.path.join(rf'/data2/target_photo/{sub_dir}',r['name']))
 
 
 
     # count = 0
     # with open(r'F:\dataset\Omniverse\materials\mat.txt',mode='r') as f:
     #     file_stems = [line.strip() for line in f.readlines()]
-    #
+    
     # mat_set = set(file_stems)
-    #
-    #
+    
+    
     # mat_paths= Path(r'F:\dataset\Omniverse\materials\material_sphere').glob('*.jpg')
     # # file_stem_set = {mat_path.stem for mat_path in mat_paths}
     # for mat_path in mat_paths:
     #     if mat_path.stem not in mat_set:
     #         shutil.move(mat_path,os.path.join(r'F:\dataset\Omniverse\materials\delete',mat_path.name))
     #         print(mat_path.stem)
+
+
+
+
+
+
+
+    # @torch.no_grad()
+    # def extract_feature(image_path):
+
+    #     img = Image.open(image_path).convert("RGB")
+
+    #     x = transform(img).unsqueeze(0).to(device)
+
+    #     feat = model(x)
+
+    #     feat = F.normalize(feat, dim=-1)
+
+    #     return feat.squeeze().cpu().numpy()
+
+
+    # print(extract_image_feature(r'/data2/target_photo/test1.jpg'))
