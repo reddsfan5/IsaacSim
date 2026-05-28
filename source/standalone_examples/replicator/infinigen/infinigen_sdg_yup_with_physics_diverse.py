@@ -87,7 +87,7 @@ else:
             # "/data2/isaacsim/assets/glb/excavator.glb"  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "10","90", 
-             "--data_num", "20",
+             "--data_num", "200",
              '--gpu','0',
              "--val_num",'0']
     
@@ -143,7 +143,7 @@ import omni.replicator.core as rep
 import omni.usd
 from isaacsim.core.utils.viewports import set_camera_view
 
-from pxr import UsdGeom,Gf,Usd,UsdShade,UsdPhysics
+from pxr import UsdGeom,Gf,Usd,UsdShade,UsdPhysics,PhysxSchema,Sdf
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.replicator.core import WriterRegistry
 import omni.kit.asset_converter as converter
@@ -241,6 +241,17 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
         omni_pbr_materials.append(omni_pbr_material)
     return omni_pbr_materials
 
+
+
+def _set_collision_surface_properties(root_prim, friction=0.8, restitution=0.05, contact_offset=2):
+    """Set friction and restitution on all collision prims under a root prim.
+    contact_offset enlarges the collision detection volume to reduce tunneling."""
+    for desc_prim in Usd.PrimRange(root_prim):
+        if desc_prim.HasAPI(UsdPhysics.CollisionAPI):
+            desc_prim.CreateAttribute("physics:friction", Sdf.ValueTypeNames.Float).Set(friction)
+            desc_prim.CreateAttribute("physics:restitution", Sdf.ValueTypeNames.Float).Set(restitution)
+            if contact_offset > 0:
+                desc_prim.CreateAttribute("physics:contactOffset", Sdf.ValueTypeNames.Float).Set(contact_offset)
 
 
 def capture_one_frame(rt_subframes: int, delta_time: float, pause_timeline: bool, wait_after: bool):
@@ -356,8 +367,8 @@ def run_sdg(config,args):
     # Set stage Up axis
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
     print(f"[SDG-Infinigen] Creating a new stage")
-    
-    
+
+
     # Disable capture on play
     rep.orchestrator.set_capture_on_play(False)
 
@@ -560,9 +571,10 @@ def run_sdg(config,args):
             container_asset = infinigen_utils.load_env(container_url, prim_path=container_stage_path,simulation_app=simulation_app)
 
             infinigen_utils.add_colliders_to_env(container_stage_path, approximation_type = "boundingCube")
+            _set_collision_surface_properties(container_asset, friction=0.9, restitution=0.02)
             
             # infinigen_utils.add_static_collider(container_stage_path)
-            infinigen_utils.set_transform_attributes(container_asset, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([3,random.uniform(.1,.2),3]))
+            infinigen_utils.set_transform_attributes(container_asset, location=Gf.Vec3d([0,0,0]), rotation=Gf.Vec3f([0,0,0]), scale=Gf.Vec3f([3,random.uniform(.01,.02),3]))
             # infinigen_utils.asset_size_adaptive(container_asset,max_limit=0.8,min_limit=0.1,target_value=random.uniform(0.3,0.6))
 
             bind_materials_to_assets(
@@ -582,7 +594,24 @@ def run_sdg(config,args):
 
                 for asset_prim in manual_falling_assets:
                     infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_prim, disable_gravity=False)
+                    # ⭐高角阻尼 + 速度限制，防止碰撞后被撞翻
+                    physx_rb_api = PhysxSchema.PhysxRigidBodyAPI(asset_prim)
+                    physx_rb_api.CreateAngularDampingAttr().Set(1.0)       # 角阻尼抑制旋转
+                    physx_rb_api.CreateLinearDampingAttr().Set(3)        # 线阻尼
+                    physx_rb_api.CreateMaxLinearVelocityAttr().Set(10)     # 限制最大线速度
+                    physx_rb_api.CreateMaxAngularVelocityAttr().Set(5)   # 限制最大角速度
+                    # random
+                    if random.uniform(0, 1)<.5:
+                        physx_rb_api.CreateLockedRotAxisAttr().Set(5) 
+                    physx_rb_api.CreateSleepThresholdAttr().Set(.2)
 
+                    physx_hull_api = PhysxSchema.PhysxConvexHullCollisionAPI.Apply(asset_prim)
+
+                    physx_hull_api.CreateHullVertexLimitAttr(32)
+                    physx_hull_api.CreateMinThicknessAttr(0.1)
+
+
+                   
 
 
             if original_label_config:
@@ -621,6 +650,7 @@ def run_sdg(config,args):
             # random asset plain
             for plane_prim in plane_prims:
                 infinigen_utils.add_colliders_to_env(plane_prim.GetPath(), approximation_type = "boundingCube")
+                _set_collision_surface_properties(plane_prim, friction=0.9, restitution=0.02)
             bind_materials_to_assets(plane_prims,materials,is_maintain_material_structure=True)
             plane_prim = random.choice(plane_prims)
 
@@ -628,28 +658,67 @@ def run_sdg(config,args):
 
             working_area_loc_abs = (0,0,0)
 
-            target_loc_range = infinigen_utils.offset_range((-0.5,0.2,-0.5,.5,0.8,.5), working_area_loc_abs)
-            infinigen_utils.randomize_poses(
-                target_assets,
-                location_range=target_loc_range,
-                rotation_range=(0, 25),
-                scale_range=[.8,1],
-            )
+            # 先缩放所有asset到目标尺寸，消除各asset原始尺度的差异
+            for asset_to_adapt in target_assets:
+                infinigen_utils.set_transform_attributes(
+                    asset_to_adapt,
+                    location=Gf.Vec3d([0, 0, 0]),
+                    rotation=Gf.Vec3f([0, 0, 0]),
+                    scale=Gf.Vec3f([1, 1, 1]),
+                )
+                infinigen_utils.asset_size_adaptive(
+                    asset_to_adapt, max_limit=.15, min_limit=0.05, target_value=0.1
+                )
+
+            # 用最小距离约束放置物体，防止初始位置重叠导致物理爆炸
+            # 原理：逐个采样位置，拒绝与已放置物体距离过近的候选点
+            min_separation = 0.15  # 物体中心最小间距(m)
+            area_half_size = .6   # XZ平面分布半范围(m)，匹配容器/桌面大小
+            spawn_y_min, spawn_y_max = 0.1, 0.15  # 在桌面上方生成高度(m)
+
+            cx, cy, cz = working_area_loc_abs
+            placed_positions = []
 
             for asset_to_adapt in target_assets:
-                
-                # todo tem
-                rotation = Gf.Vec3f([180,0,0])
-                #rotation = Gf.Vec3f([0,0,0])
+                placed = False
+                for _ in range(50):
+                    px = random.uniform(cx - area_half_size, cx + area_half_size)
+                    py = random.uniform(spawn_y_min, spawn_y_max)
+                    pz = random.uniform(cz - area_half_size, cz + area_half_size)
 
+                    # XZ平面距离检查（Y是高度方向，不同高度的物体不会碰撞）
+                    too_close = any(
+                        math.sqrt((px - qx)**2 + (pz - qz)**2) < min_separation
+                        for qx, qy, qz in placed_positions
+                    )
 
-                # infinigen_utils.set_transform_attributes(asset_to_adapt, location=Gf.Vec3d([0,0,0]), rotation=rotation, scale=Gf.Vec3f([1,1,1]))
-                infinigen_utils.asset_size_adaptive(asset_to_adapt,max_limit=.15,min_limit=0.05,target_value=0.1)
-                # infinigen_utils.add_colliders_and_rigid_body_dynamics(asset_to_adapt, disable_gravity=0)
-            
-            # translate the env location to make the plane under target prim
-            # infinigen_utils.translate_env_under_target_asset(plane_prim,target_assets[0],(0,0,0))  # (0,-0.12,0) for disk
-            infinigen_utils.translate_env_under_target_asset(plane_prim,container_asset,(0,0,0))  # (0,-0.12,0) for disk
+                    if not too_close:
+                        placed_positions.append((px, py, pz))
+                        placed = True
+                        break
+
+                if not placed:
+                    # 若无法在50次尝试内找到合适位置，随机放置（概率很低）
+                    px = random.uniform(cx - area_half_size, cx + area_half_size)
+                    py = random.uniform(spawn_y_min, spawn_y_max)
+                    pz = random.uniform(cz - area_half_size, cz + area_half_size)
+                    placed_positions.append((px, py, pz))
+
+            # 应用位置和随机旋转
+            for asset_to_adapt, (px, py, pz) in zip(target_assets, placed_positions):
+                rand_rot = Gf.Vec3f([
+                    random.uniform(0, 0),
+                    random.uniform(0, 0),
+                    random.uniform(0, 0),
+                ])
+                infinigen_utils.set_transform_attributes(
+                    asset_to_adapt,
+                    location=Gf.Vec3d([px, py, pz]),
+                    rotation=rand_rot,
+                )
+
+            # 将环境平移到目标asset下方（使桌面在物体下方）
+            infinigen_utils.translate_env_under_target_asset(plane_prim, container_asset, (0, 0, 0))
 
 
             # ⭐⭐我们的主体asset的位置⭐⭐
@@ -659,7 +728,7 @@ def run_sdg(config,args):
             # ⭐视窗相机位置和角度设置⭐
             
             if debug_mode:
-                camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+5, working_area_loc_abs[2]+3)
+                camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+3, working_area_loc_abs[2]+2)
                 print(f"相机位置:{camera_loc}")
                 set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
 
@@ -721,7 +790,7 @@ def run_sdg(config,args):
             # # 先用一些仿真帧稳定落位/碰撞
             print(f"\tFixing collisions through physics simulation")
             simulation_app.update()
-            infinigen_utils.run_simulation(num_frames=100, render=True)        
+            infinigen_utils.run_simulation(num_frames=500, render=True)        
             
 
             # Check if the render products need to be enabled for the capture

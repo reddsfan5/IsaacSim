@@ -44,11 +44,11 @@ capture:
   # Number of captures per environment before running the simulation (objects in the air)
   num_floating_captures_per_env: 0
   # Number of captures per environment after running the simulation (objects dropped)
-  num_dropped_captures_per_env: 10
+  num_dropped_captures_per_env: 3
   # Number of cameras to capture from (each camera will have a render product attached)
   num_cameras: 1
   # Resolution of the captured frames
-  resolution: [1080, 720] #[1080, 720] # [640,480]
+  resolution: [640, 480] #[1080, 720] # [640,480]
   
   focal_lengths: [50] #[50] [50,35,28,24]
 

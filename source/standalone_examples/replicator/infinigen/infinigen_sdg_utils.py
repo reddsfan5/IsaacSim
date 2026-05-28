@@ -79,7 +79,7 @@ def set_transform_attributes(
         prim.GetAttribute("xformOp:scale").Set(scale)
 
 
-def add_colliders(root_prim: Usd.Prim, approximation_type: str = "convexHull") -> None:
+def add_colliders(root_prim: Usd.Prim, approximation_type: str = UsdPhysics.Tokens.convexHull) -> None: # convexHull,boundingCube
     """Add collision attributes to mesh and geometry primitives under the root prim."""
     for desc_prim in Usd.PrimRange(root_prim):
         if desc_prim.IsA(UsdGeom.Gprim):

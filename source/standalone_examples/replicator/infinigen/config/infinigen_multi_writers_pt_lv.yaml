@@ -231,7 +231,6 @@ materials_control:
   
   classic_materials:
 
-    # usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v8.usd
     usd_file_path: /data2/isaacsim/materials/material_aggregation_usd/moto_poliigon_metal_v9.usd
     scope_path: /general_looks
 

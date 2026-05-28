@@ -19,5 +19,5 @@ def get_extention_path(extention_python_path='omni.replicator.core'):
     print(manager.get_extension_path_by_module(extention_python_path))
 
 # get_extention_path('isaacsim.replicator.writers')
-get_extention_path('isaacsim.core.utils.semantics')
+get_extention_path('pxr.PhysxSchema')
 
