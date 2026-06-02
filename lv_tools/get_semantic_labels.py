@@ -74,3 +74,18 @@ for item in labeled_prims:
 
 print("\n===== 当前任务中涉及的全部 class label =====")
 print(task_class_labels)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

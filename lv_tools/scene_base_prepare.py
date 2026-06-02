@@ -6,8 +6,8 @@ from isaacsim.core.utils.stage import add_reference_to_stage
 
 
 asset_usd_path = '/data2/isaacsim/assets/converted_usd/symmetric_cylinder_rotate_0_no_resize_smaller_rich_env-normal-test111/SAM4030.usd'
-# env_usd_path = '/data2/isaacsim/scene/dining_rooms/dining_room_6/dining_room_6.usdc'
-env_usd_path = '/data2/isaacsim/scene/Office/office_no_building_no_ceil.usdc'
+env_usd_path = '/data2/isaacsim/scene/dining_rooms/dining_room_6/dining_room_6.usdc'
+# env_usd_path = '/data2/isaacsim/scene/Office/office_no_building_no_ceil.usdc'
 material_usd_path = '/data2/isaacsim/materials/material_aggregation_usd/poliigon_city.usd'
 name = asset_usd_path.split('/')[-1].split('.')[0]
 

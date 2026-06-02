@@ -32,6 +32,13 @@ import time
 import yaml
 from isaacsim import SimulationApp
 import asyncio
+_cur_file_path = Path(__file__).resolve()
+_custom_sys_path ='/'.join(_cur_file_path.parts[:_cur_file_path.parts.index("source")]).replace('//','/')
+sys.path.append(_custom_sys_path)
+
+from lv_tools.poliigon_material_selector import MaterialEnum
+
+# 多目标合成，暂时不需要材质匹配逻辑。材质匹配逻辑针对于一种Asset的场景。
 
 CAMERA_LOCATION_MAP = {9000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
             8000: {'polar_step_deg': 1, 'azimuth_step_min': 1}, 
@@ -60,8 +67,11 @@ parser.add_argument("--camera_azimuth",help='Camera azimuth angle range',nargs=2
 parser.add_argument("--camera_latitude",help='Camera latitude angle range',nargs=2,default=[-90,90],type=float,metavar=('polar_min','polar_max'))
 parser.add_argument("--data_num",help='max data num',type=int)
 parser.add_argument("--add_angle",help='angle compliment',type=str)
+parser.add_argument("--used_material_num",help='how many kinds of materials to use for one asset',type=int,default=10)
 parser.add_argument("--gpu",help='gpu select',type=int,default=1)
 parser.add_argument("--val_num",help='val num between (1000,10000)',type=int,default=8000)
+parser.add_argument("--material_types",type=str,nargs='*',default=[mat.name for mat in MaterialEnum])
+parser.add_argument("--weights",help='weights of normal_data specified_data auto_matched_data',type=float,nargs=3,default=None)
 print("Received args:", sys.argv)
  
 
@@ -87,7 +97,8 @@ else:
             # "/data2/isaacsim/assets/glb/excavator.glb"  
              "--camera_azimuth", "0","360", 
              "--camera_latitude", "10","90", 
-             "--data_num", "200",
+             "--data_num", "20000",
+             "--used_material_num", "50",
              '--gpu','0',
              "--val_num",'0']
     
@@ -162,6 +173,7 @@ sys.path.append(_custom_sys_path)
 import infinigen_sdg_utils as infinigen_utils
 from source.standalone_examples.replicator.infinigen.location_on_sphere import IterPatchSampler,RandomUniformSphereCoord,RandomQuotaSphereCoord,PatchSampler, SpherePatch, latitude_range_to_polar_range, polar_range_to_latitude_range
 from lv_tools.material_change import MaterialTexture, bind_materials_to_prims_recursively, create_pbr_with_texture,bind_materials_to_assets
+from lv_tools.poliigon_material_selector import MaterialEnum
 
 from lv_tools.writer_register import LMDBWriterMultiAssets
 
@@ -210,9 +222,9 @@ def generate_pbr_materials(materials_control_config:dict,stage:Usd.Stage,mat_map
 
 
     omni_pbr_materials = []
-    for _ in range(materials_control_config['pbr']['num']):
-        mat_name,material_cur = mat_map.choice()
-        
+    for i,(mat_name,material_cur) in enumerate(mat_map):
+        if i>=materials_control_config['pbr']['num']:break
+
         # texture_path = random.choice([material_cur.get('col'),str(random.choice(texture_paths))])
         texture_path = material_cur.get('col')
         normal_texture_path = material_cur.get('nrm')
@@ -356,7 +368,7 @@ def run_sdg(config,args):
             return
 
 
-    mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
+
 
     # ⭐创建stage，并设置向上轴⭐
     # Create a new stage
@@ -478,14 +490,25 @@ def run_sdg(config,args):
 
 
     # # 将材质USD文件作为引用添加到当前舞台
-    usd_file_path = materials_control_config['classic_materials']['usd_file_path']
-    classic_materials_prim_path = materials_control_config['classic_materials']['scope_path']
-    add_reference_to_stage(usd_path=usd_file_path, prim_path=classic_materials_prim_path)
+    usd_file_paths = [MaterialEnum[material_type_name].file_path for material_type_name in args.material_types]
+    classic_materials_prim_path = ''
+    for usd_file_path in usd_file_paths:
+        classic_materials_prim_path = materials_control_config['classic_materials']['scope_path']
+        add_reference_to_stage(usd_path=usd_file_path, prim_path=classic_materials_prim_path)
     classic_materials = infinigen_utils.find_materials(stage, f"{classic_materials_prim_path}")
     materials.extend(classic_materials)
 
-
-    omni_pbr_materials = generate_pbr_materials(materials_control_config,stage,mat_map=mat_map)
+    # PBR材质：优先从预烘焙的USD文件加载（缓存友好），否则从纹理生成
+    if not materials_control_config.get('poliigon_mat_from_usd', True):
+        mat_map = MaterialTexture(materials_control_config['pbr']['texture_poliigon'])
+        omni_pbr_materials = generate_pbr_materials(materials_control_config, stage, mat_map=mat_map)
+    else:
+        usd_file_paths = [MaterialEnum[material_type_name].file_path for material_type_name in [m.name for m in MaterialEnum]]
+        pbr_materials_prim_path = ''
+        for usd_file_path in usd_file_paths:
+            pbr_materials_prim_path = materials_control_config['pbr']['materials_root']
+            add_reference_to_stage(usd_path=usd_file_path, prim_path=pbr_materials_prim_path)
+        omni_pbr_materials = infinigen_utils.find_materials(stage, f"{pbr_materials_prim_path}")
     materials.extend(omni_pbr_materials)
     
     # ⭐⭐⭐循环场景，开始捕获数据⭐⭐⭐
@@ -527,22 +550,33 @@ def run_sdg(config,args):
 
     
     
-    # load env
-    env_url = next(env_cycle)
-    # env_url = next(env_cycle)
-    # env_url = next(env_cycle)
-    # env_url = next(env_cycle)
-    # Load the new environment
-    print(f"[SDG-Infinigen] Loading environment: {env_url}")
-    infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
+        if not stage.GetPrimAtPath("/Environment"):
 
-    # simulation_app.update()
+            # Load the next environment
+            env_url = next(env_cycle)
+            # Load the new environment
+            print(f"[SDG-Infinigen] Loading environment: {env_url}")
+            root_prim = infinigen_utils.load_env(env_url, prim_path="/Environment",simulation_app=simulation_app)
 
-    # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
-    print(f"[SDG-Infinigen] Setting up the environment")
-    infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
-    infinigen_utils.run_simulation(num_frames=3000, render=False)  
-    simulation_app.update()
+            # distance_scale = infinigen_utils.calculate_env_adaptive_ratio(target_assets[0],max_limit=0.2,min_limit=0.08,target_value=0.12)
+            distance_scale = 1
+
+            
+
+            # print("scale",distance_scale)
+            # if not root_prim.HasAttribute("xformOp:scale"):
+            #     UsdGeom.Xformable(root_prim).AddScaleOp()
+
+            # ori_value = root_prim.GetAttribute("xformOp:scale").Get()
+
+        
+            # root_prim.GetAttribute("xformOp:scale").Set(ori_value*distance_scale)
+
+            for i in range(50):
+                simulation_app.update()
+            # Setup the environment (add collision, fix lights, etc.) and update the app once to apply the changes
+            print(f"[SDG-Infinigen] Setting up the environment")
+            infinigen_utils.setup_env(root_path="/Environment", hide_top_walls=debug_mode)
 
     
     for data_gener in data_gen_list:
@@ -617,10 +651,13 @@ def run_sdg(config,args):
             if original_label_config:
                 original_assets = infinigen_utils.load_original_labeled_assets(original_label_config)
                 target_assets.extend(original_assets)
+
+            args.weights = args.weights if args.weights else [1,1]
+            mats_for_target = random.choices([classic_materials,omni_pbr_materials],weights=args.weights,k=1)[0]
             
             bind_materials_to_assets(
-                target_assets,classic_materials,
-                is_maintain_material_structure=False,usd_materials_num=10)
+                target_assets,mats_for_target,
+                is_maintain_material_structure=False,usd_materials_num=min(args.used_material_num,len(mats_for_target)))
 
 
 
@@ -728,7 +765,7 @@ def run_sdg(config,args):
             # ⭐视窗相机位置和角度设置⭐
             
             if debug_mode:
-                camera_loc = (working_area_loc_abs[0], working_area_loc_abs[1]+3, working_area_loc_abs[2]+2)
+                camera_loc = (working_area_loc_abs[0]+1, working_area_loc_abs[1]+1.3, working_area_loc_abs[2]+1.5)
                 print(f"相机位置:{camera_loc}")
                 set_camera_view(eye=np.array(camera_loc), target=np.array(working_area_loc_abs))
 
@@ -790,7 +827,7 @@ def run_sdg(config,args):
             # # 先用一些仿真帧稳定落位/碰撞
             print(f"\tFixing collisions through physics simulation")
             simulation_app.update()
-            infinigen_utils.run_simulation(num_frames=500, render=True)        
+            infinigen_utils.run_simulation(num_frames=100, render=True)        
             
 
             # Check if the render products need to be enabled for the capture
@@ -827,7 +864,7 @@ def run_sdg(config,args):
                     distractors = stage.GetPrimAtPath('/Distractors')
 
                     # if random.uniform(0,1) < materials_control_config['pbr']['pbr_prob']:
-                    bind_materials_to_prims_recursively(plane_prim,omni_pbr_materials,is_mesh_bind_material=True)
+                    bind_materials_to_prims_recursively(root_prim,omni_pbr_materials,is_mesh_bind_material=True)
                     bind_materials_to_prims_recursively(distractors,materials,is_mesh_bind_material=True)
                     
                     # todo random visibility ,may result in unexpected exit
